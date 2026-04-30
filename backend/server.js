@@ -32,13 +32,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const httpServer = createServer(app);
 
-// 1. Define allowed origins once
+// Update this array in your server.js
 const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:5173",
-  "https://flex-a5ahecpmb-srijith112006-2265s-projects.vercel.app",
-  process.env.CLIENT_URL // Includes the Render environment variable if set
-].filter(Boolean); // Removes undefined values if CLIENT_URL is not set
+  "https://flex-fit-plum.vercel.app", // Add this new one
+  "https://flex-a5ahecpmb-srijith112006-2265s-projects.vercel.app", // Keep the old one just in case
+  process.env.CLIENT_URL 
+].filter(Boolean);
 
 // 2. Initialize Socket.io with the allowed origins
 const io = new Server(httpServer, {
