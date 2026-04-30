@@ -1,0 +1,32 @@
+﻿version: "3.9"
+services:
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+
+  backend:
+    image: node:20
+    working_dir: /app
+    command: sh -c "npm install && npm run dev"
+    volumes:
+      - ./backend:/app
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mongo
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/fitness
+      - JWT_SECRET=change_me_please
+      - PORT=5000
+
+  frontend:
+    image: node:20
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
