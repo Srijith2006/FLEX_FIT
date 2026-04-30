@@ -1,9 +1,0 @@
-﻿-- FlexFit uses MongoDB. Keep this for structure compatibility.
--- Run in mongosh:
--- use flexfit
--- db.users.createIndex({ email: 1 }, { unique: true })
--- db.trainers.createIndex({ user: 1 }, { unique: true })
--- db.clients.createIndex({ user: 1 }, { unique: true })
--- db.coachingrelationships.createIndex({ trainer: 1, client: 1 })
--- db.workoutlogs.createIndex({ client: 1, date: -1 })
--- db.payments.createIndex({ client: 1, createdAt: -1 })
