@@ -12,16 +12,16 @@ import connectDB from "./config/database.js";
 import { User } from "./models/index.js";
 import { saveMessage } from "./controllers/messageController.js";
 
-import authRoutes        from "./routes/auth.js";
-import trainerRoutes     from "./routes/trainers.js";
-import clientRoutes      from "./routes/clients.js";
-import coachingRoutes    from "./routes/coaching.js";
-import workoutRoutes     from "./routes/workouts.js";
-import paymentRoutes     from "./routes/payments.js";
-import uploadRoutes      from "./routes/uploads.js";
-import programRoutes     from "./routes/programs.js";
-import sessionRoutes     from "./routes/sessions.js";
-import messageRoutes     from "./routes/messages.js";
+import authRoutes         from "./routes/auth.js";
+import trainerRoutes      from "./routes/trainers.js";
+import clientRoutes       from "./routes/clients.js";
+import coachingRoutes     from "./routes/coaching.js";
+import workoutRoutes      from "./routes/workouts.js";
+import paymentRoutes      from "./routes/payments.js";
+import uploadRoutes       from "./routes/uploads.js";
+import programRoutes      from "./routes/programs.js";
+import sessionRoutes      from "./routes/sessions.js";
+import messageRoutes      from "./routes/messages.js";
 import dailyWorkoutRoutes from "./routes/dailyWorkouts.js";
 import { notFound, errorHandler } from "./middleware/errorHandler.js";
 
@@ -32,12 +32,30 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const httpServer = createServer(app);
 
+// 1. Define allowed origins once
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "https://flex-a5ahecpmb-srijith112006-2265s-projects.vercel.app",
+  process.env.CLIENT_URL // Includes the Render environment variable if set
+].filter(Boolean); // Removes undefined values if CLIENT_URL is not set
+
+// 2. Initialize Socket.io with the allowed origins
 const io = new Server(httpServer, {
-  cors: { origin: process.env.CLIENT_URL || "http://localhost:3000", credentials: true },
+  cors: { 
+    origin: allowedOrigins, 
+    credentials: true 
+  },
 });
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
-app.use(cors({ origin: process.env.CLIENT_URL || "http://localhost:3000", credentials: true }));
+
+// 3. Initialize Express CORS with the allowed origins
+app.use(cors({ 
+  origin: allowedOrigins, 
+  credentials: true 
+}));
+
 app.use(morgan("dev"));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
@@ -45,22 +63,22 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.get("/api/health", (_, res) => res.json({ ok: true, version: 3 }));
 
-app.use("/api/auth",          authRoutes);
-app.use("/api/trainers",      trainerRoutes);
-app.use("/api/clients",       clientRoutes);
-app.use("/api/coaching",      coachingRoutes);
-app.use("/api/workouts",      workoutRoutes);
-app.use("/api/payments",      paymentRoutes);
-app.use("/api/uploads",       uploadRoutes);
-app.use("/api/programs",      programRoutes);
-app.use("/api/sessions",      sessionRoutes);
-app.use("/api/messages",      messageRoutes);
+app.use("/api/auth",           authRoutes);
+app.use("/api/trainers",       trainerRoutes);
+app.use("/api/clients",        clientRoutes);
+app.use("/api/coaching",       coachingRoutes);
+app.use("/api/workouts",       workoutRoutes);
+app.use("/api/payments",       paymentRoutes);
+app.use("/api/uploads",        uploadRoutes);
+app.use("/api/programs",       programRoutes);
+app.use("/api/sessions",       sessionRoutes);
+app.use("/api/messages",       messageRoutes);
 app.use("/api/daily-workouts", dailyWorkoutRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
 
-// ── SOCKET.IO ──────────────────────────────────────────
+// ── SOCKET.IO LOGIC ──────────────────────────────────────────
 const onlineUsers = new Map();
 
 io.use(async (socket, next) => {
@@ -106,27 +124,6 @@ io.on("connection", (socket) => {
     io.emit("online_users", Array.from(onlineUsers.keys()));
   });
 });
-
-// Define your allowed origins
-const allowedOrigins = [
-  "http://localhost:3000",
-  "http://localhost:5173",
-  "https://flex-a5ahecpmb-srijith112006-2265s-projects.vercel.app" // Your Vercel URL
-];
-
-// Update Socket.io configuration
-const io = new Server(httpServer, {
-  cors: { 
-    origin: allowedOrigins, 
-    credentials: true 
-  },
-});
-
-// Update Express CORS configuration
-app.use(cors({ 
-  origin: allowedOrigins, 
-  credentials: true 
-}));
 
 const PORT = process.env.PORT || 5000;
 httpServer.listen(PORT, () => console.log(`✅ FlexFit v3 running on http://localhost:${PORT}`));
