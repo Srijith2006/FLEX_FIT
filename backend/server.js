@@ -107,5 +107,26 @@ io.on("connection", (socket) => {
   });
 });
 
+// Define your allowed origins
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "https://flex-a5ahecpmb-srijith112006-2265s-projects.vercel.app" // Your Vercel URL
+];
+
+// Update Socket.io configuration
+const io = new Server(httpServer, {
+  cors: { 
+    origin: allowedOrigins, 
+    credentials: true 
+  },
+});
+
+// Update Express CORS configuration
+app.use(cors({ 
+  origin: allowedOrigins, 
+  credentials: true 
+}));
+
 const PORT = process.env.PORT || 5000;
 httpServer.listen(PORT, () => console.log(`✅ FlexFit v3 running on http://localhost:${PORT}`));
