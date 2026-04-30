@@ -1,85 +1,154 @@
-﻿import { Client, Trainer, Payment } from "../models/index.js";
+﻿import crypto from "crypto";
+import Razorpay from "razorpay";
+import { Client, Trainer, Program, Enrollment, Payment } from "../models/index.js";
 
-// Lazily import stripe so server still starts without a valid key
-let stripeClient = null;
-const getStripe = () => {
-  if (!stripeClient) {
-    const key = process.env.STRIPE_SECRET_KEY;
-    if (!key || key.startsWith("sk_test_your")) {
-      return null; // Stripe not configured
-    }
-    const Stripe = require("stripe");
-    stripeClient = Stripe(key);
-  }
-  return stripeClient;
+const getRazorpay = () => {
+  const key_id     = process.env.RAZORPAY_KEY_ID;
+  const key_secret = process.env.RAZORPAY_KEY_SECRET;
+  if (!key_id || !key_secret) throw new Error("Razorpay keys not configured");
+  return new Razorpay({ key_id, key_secret });
 };
 
-export const createPaymentIntent = async (req, res, next) => {
+// 1. Create Razorpay Order
+export const createOrder = async (req, res, next) => {
   try {
-    const { amount, type, trainerId } = req.body;
-    if (!amount || !type) return res.status(400).json({ message: "amount and type are required" });
+    const { programId } = req.body;
+    if (!programId) return res.status(400).json({ message: "programId is required" });
 
     const client = await Client.findOne({ user: req.user._id });
     if (!client) return res.status(404).json({ message: "Client profile not found" });
 
-    const trainer = trainerId ? await Trainer.findById(trainerId) : null;
+    const program = await Program.findById(programId)
+      .populate({ path: "trainer", populate: { path: "user", select: "name" } });
+    if (!program) return res.status(404).json({ message: "Program not found" });
 
-    const stripe = getStripe();
+    const existing = await Enrollment.findOne({ client: client._id, program: program._id });
+    if (existing) return res.status(400).json({ message: "Already enrolled in this program" });
 
-    // If Stripe isn't configured, create a local payment record as pending
-    let intentId = `local_${Date.now()}`;
-    let clientSecret = null;
+    const amountInPaise = Math.round(Number(program.price) * 100);
 
-    if (stripe) {
-      const intent = await stripe.paymentIntents.create({
-        amount: Math.round(Number(amount) * 100),
-        currency: "usd",
-        metadata: { type, clientId: String(client._id) },
-      });
-      intentId = intent.id;
-      clientSecret = intent.client_secret;
-    }
-
-    const payment = await Payment.create({
-      client: client._id,
-      trainer: trainer?._id,
-      amount: Number(amount),
-      type,
-      paymentIntentId: intentId,
-      status: stripe ? "pending" : "paid", // auto-mark paid if no Stripe in dev
+    const razorpay = getRazorpay();
+    const order = await razorpay.orders.create({
+      amount:   amountInPaise,
+      currency: "INR",
+      receipt:  `rcpt_${Date.now()}`,
+      notes: {
+        programId:   String(program._id),
+        programName: program.title,
+        clientId:    String(client._id),
+      },
     });
 
-    res.status(201).json({ clientSecret, payment, stripeEnabled: !!stripe });
+    const payment = await Payment.create({
+      client:          client._id,
+      trainer:         program.trainer._id,
+      program:         program._id,
+      amount:          program.price,
+      currency:        "INR",
+      type:            "program_fee",
+      status:          "pending",
+      razorpayOrderId: order.id,
+    });
+
+    res.status(201).json({
+      orderId:     order.id,
+      amount:      order.amount,
+      currency:    order.currency,
+      paymentId:   payment._id,
+      keyId:       process.env.RAZORPAY_KEY_ID,
+      programName: program.title,
+      trainerName: program.trainer.user?.name,
+    });
   } catch (error) {
+    if (error.message === "Razorpay keys not configured")
+      return res.status(500).json({ message: "Payment gateway not configured. Contact support." });
     next(error);
   }
 };
 
-export const confirmPayment = async (req, res, next) => {
+// 2. Verify & Confirm Payment
+export const verifyPayment = async (req, res, next) => {
   try {
-    const { paymentId } = req.params;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, paymentId } = req.body;
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !paymentId)
+      return res.status(400).json({ message: "Missing payment verification fields" });
+
+    const expectedSig = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+      .digest("hex");
+
+    if (expectedSig !== razorpay_signature) {
+      await Payment.findByIdAndUpdate(paymentId, { status: "failed" });
+      return res.status(400).json({ message: "Payment verification failed — invalid signature" });
+    }
+
     const payment = await Payment.findByIdAndUpdate(
       paymentId,
-      { status: "paid" },
+      { status: "paid", razorpayPaymentId: razorpay_payment_id, razorpaySignature: razorpay_signature },
       { new: true }
     );
-    if (!payment) return res.status(404).json({ message: "Payment not found" });
-    res.json({ payment });
+    if (!payment) return res.status(404).json({ message: "Payment record not found" });
+
+    const enrollment = await Enrollment.create({
+      client:     payment.client,
+      program:    payment.program,
+      trainer:    payment.trainer,
+      amountPaid: payment.amount,
+      status:     "active",
+    });
+
+    await Program.findByIdAndUpdate(payment.program, { $inc: { enrolledCount: 1 } });
+
+    res.json({ success: true, payment, enrollment });
   } catch (error) {
+    if (error.code === 11000) return res.json({ success: true, message: "Already enrolled" });
     next(error);
   }
 };
 
+// 3. Webhook
+export const webhook = async (req, res) => {
+  try {
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+    if (webhookSecret) {
+      const sig      = req.headers["x-razorpay-signature"];
+      const expected = crypto.createHmac("sha256", webhookSecret)
+        .update(JSON.stringify(req.body)).digest("hex");
+      if (sig !== expected) return res.status(400).json({ message: "Invalid signature" });
+    }
+
+    const { event, payload } = req.body;
+    if (event === "payment.captured") {
+      const rp = payload.payment.entity;
+      const payment = await Payment.findOne({ razorpayOrderId: rp.order_id });
+      if (payment && payment.status !== "paid") {
+        await Payment.findByIdAndUpdate(payment._id, { status: "paid", razorpayPaymentId: rp.id });
+        const exists = await Enrollment.findOne({ client: payment.client, program: payment.program });
+        if (!exists) {
+          await Enrollment.create({ client: payment.client, program: payment.program, trainer: payment.trainer, amountPaid: payment.amount, status: "active" });
+          await Program.findByIdAndUpdate(payment.program, { $inc: { enrolledCount: 1 } });
+        }
+      }
+    }
+    if (event === "payment.failed") {
+      const rp = payload.payment.entity;
+      await Payment.findOneAndUpdate({ razorpayOrderId: rp.order_id }, { status: "failed" });
+    }
+    res.status(200).json({ ok: true });
+  } catch { res.status(200).json({ ok: true }); }
+};
+
+// 4. My Payments
 export const myPayments = async (req, res, next) => {
   try {
     const client = await Client.findOne({ user: req.user._id });
     if (!client) return res.status(404).json({ message: "Client profile not found" });
-
     const payments = await Payment.find({ client: client._id })
-      .populate("trainer", "user")
+      .populate("program", "title")
+      .populate({ path: "trainer", populate: { path: "user", select: "name" } })
       .sort({ createdAt: -1 });
     res.json({ payments });
-  } catch (error) {
-    next(error);
-  }
+  } catch (error) { next(error); }
 };

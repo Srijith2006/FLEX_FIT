@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
 import api from "../../services/api.js";
 import useAuth from "../../hooks/useAuth.js";
+import RazorpayCheckout from "../common/RazorpayCheckout.jsx";
 
 const CATEGORIES = [
-  { value: "", label: "All" },
-  { value: "weight_loss", label: "Weight Loss" },
-  { value: "muscle_gain", label: "Muscle Gain" },
-  { value: "strength", label: "Strength" },
-  { value: "cardio", label: "Cardio" },
-  { value: "flexibility", label: "Flexibility" },
-  { value: "general", label: "General" },
+  { value: "",            label: "All"          },
+  { value: "weight_loss", label: "Weight Loss"  },
+  { value: "muscle_gain", label: "Muscle Gain"  },
+  { value: "strength",    label: "Strength"     },
+  { value: "cardio",      label: "Cardio"       },
+  { value: "flexibility", label: "Flexibility"  },
+  { value: "general",     label: "General"      },
 ];
 
 function getYTEmbed(url) {
@@ -21,14 +22,22 @@ function getYTEmbed(url) {
   return null;
 }
 
-function ProgramCard({ program, onEnroll, enrolling, enrolled }) {
+function ProgramCard({ program, enrolled, onEnrolled }) {
   const [expanded, setExpanded] = useState(false);
+  const [paying, setPaying] = useState(false);
+  const [successMsg, setSuccessMsg] = useState("");
+
+  const handleSuccess = ({ paymentId, enrollment }) => {
+    setPaying(false);
+    setSuccessMsg(`🎉 Payment successful! Payment ID: ${paymentId}`);
+    onEnrolled(program._id);
+  };
 
   return (
     <div style={{
-      background: "var(--surface)", border: `1px solid ${enrolled ? "var(--green)" : "var(--border)"}`,
+      background: "var(--surface)",
+      border: `1px solid ${enrolled ? "var(--green)" : "var(--border)"}`,
       borderRadius: "var(--radius-lg)", overflow: "hidden",
-      transition: "border-color 0.2s, transform 0.2s, box-shadow 0.2s",
       boxShadow: enrolled ? "0 0 20px rgba(16,185,129,0.1)" : "none",
     }}>
       {/* Header */}
@@ -46,13 +55,13 @@ function ProgramCard({ program, onEnroll, enrolling, enrolled }) {
           </div>
           <div style={{ textAlign: "right", flexShrink: 0 }}>
             <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: "32px", color: "var(--accent)", lineHeight: 1 }}>
-              ${program.price}
+              ₹{program.price}
             </div>
             <div style={{ fontSize: "11px", color: "var(--text3)" }}>one-time</div>
           </div>
         </div>
 
-        {/* Trainer info */}
+        {/* Trainer row */}
         <div style={{ display: "flex", gap: "10px", alignItems: "center", padding: "12px", background: "var(--bg3)", borderRadius: "var(--radius)", marginBottom: "12px" }}>
           <div className="trainer-avatar" style={{ width: "36px", height: "36px", fontSize: "14px", borderRadius: "10px", flexShrink: 0 }}>
             {(program.trainer?.user?.name || "T")[0].toUpperCase()}
@@ -60,33 +69,30 @@ function ProgramCard({ program, onEnroll, enrolling, enrolled }) {
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 600, fontSize: "14px" }}>{program.trainer?.user?.name}</div>
             <div style={{ fontSize: "11px", color: "var(--text3)" }}>
-              {program.trainer?.yearsOfExperience || 0}y experience · ★ {Number(program.trainer?.avgRating || 0).toFixed(1)} rating
+              {program.trainer?.yearsOfExperience || 0}y exp · ★ {Number(program.trainer?.avgRating || 0).toFixed(1)}
             </div>
           </div>
-          <div style={{ fontSize: "12px", color: "var(--text3)" }}>
-            {program.durationWeeks}w · {program.days?.length || 0} days · {program.enrolledCount} enrolled
+          <div style={{ fontSize: "12px", color: "var(--text3)", textAlign: "right" }}>
+            {program.durationWeeks}w · {program.days?.length || 0} days<br />
+            {program.enrolledCount} enrolled
           </div>
         </div>
 
-        {/* Stats row */}
-        <div style={{ display: "flex", gap: "16px", marginBottom: "14px" }}>
-          {program.trainer?.specialization?.slice(0, 3).map(s => (
-            <span key={s} className="spec-tag">{s}</span>
-          ))}
-        </div>
+        {program.trainer?.specialization?.length > 0 && (
+          <div className="specialization-tags" style={{ marginBottom: "12px" }}>
+            {program.trainer.specialization.slice(0, 3).map(s => (
+              <span key={s} className="spec-tag">{s}</span>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Expandable days preview */}
+      {/* Expand schedule */}
       {program.days?.length > 0 && (
         <div style={{ padding: "0 20px" }}>
-          <button
-            className="btn btn-outline btn-sm btn-full"
-            onClick={() => setExpanded(e => !e)}
-            style={{ marginBottom: "12px" }}
-          >
-            {expanded ? "▲ Hide Program Details" : `▼ View ${program.days.length}-Day Schedule`}
+          <button className="btn btn-outline btn-sm btn-full" onClick={() => setExpanded(e => !e)} style={{ marginBottom: "12px" }}>
+            {expanded ? "▲ Hide Schedule" : `▼ View ${program.days.length}-Day Schedule`}
           </button>
-
           {expanded && (
             <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "14px" }}>
               {program.days.map((day, i) => (
@@ -100,16 +106,15 @@ function ProgramCard({ program, onEnroll, enrolling, enrolled }) {
                         <span>{ex.name}</span>
                         <span style={{ color: "var(--text3)" }}>{ex.sets}×{ex.reps}{ex.weight ? ` @ ${ex.weight}kg` : ""}</span>
                       </div>
-                      {ex.notes && <div style={{ fontSize: "11px", color: "var(--text3)", marginTop: "2px" }}>{ex.notes}</div>}
                       {ex.videoUrl && (() => {
                         const embed = getYTEmbed(ex.videoUrl);
-                        return embed ? (
-                          <div style={{ marginTop: "8px", borderRadius: "8px", overflow: "hidden", aspectRatio: "16/9" }}>
-                            <iframe src={embed} style={{ width: "100%", height: "100%", border: "none" }} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen title={ex.name} />
-                          </div>
-                        ) : (
-                          <a href={ex.videoUrl} target="_blank" rel="noreferrer" style={{ fontSize: "12px", color: "var(--accent2)" }}>▶ Watch video</a>
-                        );
+                        return embed
+                          ? <div style={{ marginTop: "8px", borderRadius: "8px", overflow: "hidden", aspectRatio: "16/9" }}>
+                              <iframe src={embed} style={{ width: "100%", height: "100%", border: "none" }}
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen title={ex.name} />
+                            </div>
+                          : <a href={ex.videoUrl} target="_blank" rel="noreferrer" style={{ fontSize: "12px", color: "var(--accent2)" }}>▶ Watch video</a>;
                       })()}
                     </div>
                   ))}
@@ -122,17 +127,24 @@ function ProgramCard({ program, onEnroll, enrolling, enrolled }) {
 
       {/* CTA */}
       <div style={{ padding: "14px 20px 20px" }}>
+        {successMsg && <div className="alert alert-success" style={{ marginBottom: "10px" }}>{successMsg}</div>}
+
         {enrolled ? (
           <div className="alert alert-success">✓ You're enrolled in this program</div>
+        ) : paying ? (
+          <div>
+            <RazorpayCheckout
+              program={program}
+              onSuccess={handleSuccess}
+              onClose={() => setPaying(false)}
+            />
+            <button className="btn btn-outline btn-sm btn-full" onClick={() => setPaying(false)} style={{ marginTop: "8px" }}>
+              Cancel
+            </button>
+          </div>
         ) : (
-          <button
-            className="btn btn-accent btn-full"
-            onClick={() => onEnroll(program._id, program.price)}
-            disabled={enrolling === program._id}
-          >
-            {enrolling === program._id
-              ? <><span className="spinner" style={{ borderTopColor: "#fff" }}></span> Processing…</>
-              : `Enroll Now — $${program.price}`}
+          <button className="btn btn-accent btn-full" onClick={() => setPaying(true)}>
+            {program.price === 0 ? "Enroll Free" : `Enroll Now — ₹${program.price}`}
           </button>
         )}
       </div>
@@ -142,28 +154,31 @@ function ProgramCard({ program, onEnroll, enrolling, enrolled }) {
 
 export default function ProgramMarketplace() {
   const { token } = useAuth();
-  const [programs, setPrograms] = useState([]);
+  const [programs, setPrograms]       = useState([]);
   const [enrollments, setEnrollments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [enrolling, setEnrolling] = useState(null);
-  const [msg, setMsg] = useState({ type: "", text: "" });
-  const [category, setCategory] = useState("");
-  const [search, setSearch] = useState("");
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState("");
+  const [category, setCategory]       = useState("");
+  const [search, setSearch]           = useState("");
 
   const load = async () => {
     try {
       setLoading(true);
       const params = {};
       if (category) params.category = category;
-      if (search) params.search = search;
+      if (search)   params.search   = search;
+
       const [progsRes, enrollRes] = await Promise.all([
         api.get("/programs", { params }),
         api.get("/programs/enrolled", { headers: { Authorization: `Bearer ${token}` } }),
       ]);
+
       setPrograms(progsRes.data.programs || []);
-      setEnrollments(enrollRes.data.enrollments?.map(e => String(e.program?._id)) || []);
+      setEnrollments(
+        enrollRes.data.enrollments?.map(e => String(e.program?._id)) || []
+      );
     } catch {
-      setMsg({ type: "error", text: "Failed to load programs." });
+      setError("Failed to load programs.");
     } finally {
       setLoading(false);
     }
@@ -171,18 +186,8 @@ export default function ProgramMarketplace() {
 
   useEffect(() => { load(); }, [category]);
 
-  const enroll = async (programId) => {
-    setEnrolling(programId);
-    setMsg({ type: "", text: "" });
-    try {
-      await api.post(`/programs/${programId}/enroll`, {}, { headers: { Authorization: `Bearer ${token}` } });
-      setEnrollments(e => [...e, programId]);
-      setMsg({ type: "success", text: "🎉 Enrolled successfully! Check My Programs to start." });
-    } catch (e) {
-      setMsg({ type: "error", text: e?.response?.data?.message || "Enrollment failed." });
-    } finally {
-      setEnrolling(null);
-    }
+  const handleEnrolled = (programId) => {
+    setEnrollments(prev => [...prev, String(programId)]);
   };
 
   return (
@@ -196,7 +201,7 @@ export default function ProgramMarketplace() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             onKeyDown={e => e.key === "Enter" && load()}
-            style={{ maxWidth: "260px" }}
+            style={{ maxWidth: "240px" }}
           />
           <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
             {CATEGORIES.map(c => (
@@ -209,11 +214,11 @@ export default function ProgramMarketplace() {
               </button>
             ))}
           </div>
-          <button className="btn btn-outline btn-sm" onClick={load} style={{ marginLeft: "auto" }}>↻ Refresh</button>
+          <button className="btn btn-outline btn-sm" onClick={load} style={{ marginLeft: "auto" }}>↻</button>
         </div>
       </div>
 
-      {msg.text && <div className={`alert alert-${msg.type === "error" ? "error" : "success"}`}>{msg.text}</div>}
+      {error && <div className="alert alert-error">{error}</div>}
 
       {loading ? (
         <div className="loading-screen" style={{ minHeight: "200px" }}>
@@ -231,8 +236,7 @@ export default function ProgramMarketplace() {
               key={p._id}
               program={p}
               enrolled={enrollments.includes(String(p._id))}
-              enrolling={enrolling}
-              onEnroll={enroll}
+              onEnrolled={handleEnrolled}
             />
           ))}
         </div>

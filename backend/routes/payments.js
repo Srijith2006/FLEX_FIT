@@ -1,11 +1,12 @@
 ﻿import express from "express";
-import { createPaymentIntent, confirmPayment, myPayments } from "../controllers/paymentController.js";
+import { createOrder, verifyPayment, webhook, myPayments } from "../controllers/paymentController.js";
 import { protect, authorize } from "../middleware/auth.js";
 
 const router = express.Router();
 
-router.post("/intent", protect, authorize("client"), createPaymentIntent);
-router.patch("/:paymentId/confirm", protect, authorize("client", "admin"), confirmPayment);
-router.get("/mine", protect, authorize("client"), myPayments);
+// Razorpay webhook — raw body needed for signature check
+router.post("/webhook", express.raw({ type: "application/json" }), webhook);
 
-export default router;
+router.post("/order",   protect, authorize("client"), createOrder);
+router.post("/verify",  protect, authorize("client"), verifyPayment);
+router.get("/mine",     protect, authorize("client"), myPayments);
