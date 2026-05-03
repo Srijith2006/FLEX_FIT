@@ -11,6 +11,8 @@ import jwt from "jsonwebtoken";
 import connectDB from "./config/database.js";
 import { User } from "./models/index.js";
 import { saveMessage } from "./controllers/messageController.js";
+import { saveGroupMessage } from "./controllers/groupChatController.js";
+import { sendPushToUser, savePushSubscription, getVapidPublicKey } from "./services/pushNotification.js";
 
 import authRoutes         from "./routes/auth.js";
 import trainerRoutes      from "./routes/trainers.js";
@@ -23,6 +25,11 @@ import programRoutes      from "./routes/programs.js";
 import sessionRoutes      from "./routes/sessions.js";
 import messageRoutes      from "./routes/messages.js";
 import dailyWorkoutRoutes from "./routes/dailyWorkouts.js";
+import marketplaceRoutes  from "./routes/marketplace.js";
+import orderRoutes        from "./routes/orders.js";
+import vendorRoutes       from "./routes/vendors.js";
+import groupChatRoutes    from "./routes/groupChat.js";
+import proofOfWorkRoutes  from "./routes/proofOfWork.js";
 import { notFound, errorHandler } from "./middleware/errorHandler.js";
 
 dotenv.config();
@@ -32,37 +39,32 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const httpServer = createServer(app);
 
-// Update this array in your server.js
-const allowedOrigins = [
-  "http://localhost:3000",
-  "http://localhost:5173",
-  "https://flex-fit-plum.vercel.app", // Add this new one
-  "https://flex-a5ahecpmb-srijith112006-2265s-projects.vercel.app", // Keep the old one just in case
-  process.env.CLIENT_URL 
-].filter(Boolean);
-
-// 2. Initialize Socket.io with the allowed origins
 const io = new Server(httpServer, {
-  cors: { 
-    origin: allowedOrigins, 
-    credentials: true 
-  },
+  cors: { origin: process.env.CLIENT_URL || "http://localhost:3000", credentials: true },
 });
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
-
-// 3. Initialize Express CORS with the allowed origins
-app.use(cors({ 
-  origin: allowedOrigins, 
-  credentials: true 
-}));
-
+app.use(cors({ origin: process.env.CLIENT_URL || "http://localhost:3000", credentials: true }));
 app.use(morgan("dev"));
+// Raw body for Razorpay webhook
+app.use("/api/payments/webhook", express.raw({ type: "application/json" }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-app.get("/api/health", (_, res) => res.json({ ok: true, version: 3 }));
+app.get("/api/health", (_, res) => res.json({ ok: true, version: 4 }));
+app.get("/api/vapid-public-key", (_, res) => res.json({ key: getVapidPublicKey() }));
+
+// Push subscription save
+app.post("/api/push/subscribe", async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) return res.status(401).json({ message: "No token" });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "flexfit_secret");
+    await savePushSubscription(decoded.id, req.body);
+    res.json({ ok: true });
+  } catch { res.status(400).json({ ok: false }); }
+});
 
 app.use("/api/auth",           authRoutes);
 app.use("/api/trainers",       trainerRoutes);
@@ -75,11 +77,15 @@ app.use("/api/programs",       programRoutes);
 app.use("/api/sessions",       sessionRoutes);
 app.use("/api/messages",       messageRoutes);
 app.use("/api/daily-workouts", dailyWorkoutRoutes);
-
+app.use("/api/marketplace",    marketplaceRoutes);
+app.use("/api/orders",         orderRoutes);
+app.use("/api/vendors",        vendorRoutes);
+app.use("/api/group-chat",     groupChatRoutes);
+app.use("/api/proof",          proofOfWorkRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
-// ── SOCKET.IO LOGIC ──────────────────────────────────────────
+// ── SOCKET.IO ──────────────────────────────────────────────────────────────────
 const onlineUsers = new Map();
 
 io.use(async (socket, next) => {
@@ -100,6 +106,7 @@ io.on("connection", (socket) => {
   io.emit("online_users", Array.from(onlineUsers.keys()));
   socket.join(userId);
 
+  // ── Direct message ──
   socket.on("send_message", async ({ receiverId, text }) => {
     if (!receiverId || !text?.trim()) return;
     try {
@@ -113,11 +120,38 @@ io.on("connection", (socket) => {
       };
       io.to(receiverId).emit("receive_message", payload);
       socket.emit("message_sent", payload);
+      // Push notification to receiver
+      await sendPushToUser(receiverId, `New message from ${socket.user.name}`, text.trim().slice(0, 80), { type: "message" });
     } catch { socket.emit("error", { message: "Failed to send message" }); }
   });
 
+  // ── Group chat ──
+  socket.on("join_group", (programId) => { socket.join(`group_${programId}`); });
+  socket.on("leave_group", (programId) => { socket.leave(`group_${programId}`); });
+
+  socket.on("send_group_message", async ({ programId, text, type }) => {
+    if (!programId || !text?.trim()) return;
+    try {
+      const msg = await saveGroupMessage(programId, socket.user._id, text.trim(), type || "text");
+      const payload = {
+        _id:      msg._id,
+        sender:   { _id: socket.user._id, name: socket.user.name, role: socket.user.role },
+        message:  msg.message,
+        type:     msg.type,
+        createdAt: msg.createdAt,
+      };
+      // Broadcast to everyone in the group room
+      io.to(`group_${programId}`).emit("group_message", payload);
+    } catch { socket.emit("error", { message: "Failed to send group message" }); }
+  });
+
+  // ── Typing ──
   socket.on("typing", ({ receiverId, isTyping }) => {
     io.to(receiverId).emit("user_typing", { senderId: userId, isTyping });
+  });
+
+  socket.on("group_typing", ({ programId, isTyping }) => {
+    socket.to(`group_${programId}`).emit("group_typing", { senderId: userId, name: socket.user.name, isTyping });
   });
 
   socket.on("disconnect", () => {
@@ -127,4 +161,4 @@ io.on("connection", (socket) => {
 });
 
 const PORT = process.env.PORT || 5000;
-httpServer.listen(PORT, () => console.log(`✅ FlexFit v3 running on http://localhost:${PORT}`));
+httpServer.listen(PORT, () => console.log(`✅ FlexFit v4 running on http://localhost:${PORT}`));

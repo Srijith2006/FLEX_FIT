@@ -2,6 +2,7 @@
 import api from "../../services/api.js";
 import useAuth from "../../hooks/useAuth.js";
 
+
 const SPECS = ["Weight Loss", "Muscle Gain", "HIIT", "Yoga", "Powerlifting", "Cardio", "Nutrition", "Rehabilitation", "Sports Performance", "Flexibility"];
 
 export default function TrainerDashboard() {
