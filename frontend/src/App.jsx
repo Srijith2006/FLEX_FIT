@@ -11,7 +11,7 @@ import Dashboard from "./pages/Dashboard.jsx";
 
 // New Components
 import Marketplace from "./components/common/MarketPlace.jsx";
-import VendorDashboard from "./components/vendor/VendorDashboard.jsx";
+import VendorDashboard from "./components/Vendor/VendorDashboard.jsx";
 import GroupChat from "./components/common/GroupChat.jsx";
 
 export default function App() {
