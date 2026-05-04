@@ -14,6 +14,7 @@ import { saveMessage } from "./controllers/messageController.js";
 import { saveGroupMessage } from "./controllers/groupChatController.js";
 import { sendPushToUser, savePushSubscription, getVapidPublicKey } from "./services/pushNotification.js";
 
+// Routes
 import authRoutes         from "./routes/auth.js";
 import trainerRoutes      from "./routes/trainers.js";
 import clientRoutes       from "./routes/clients.js";
@@ -40,38 +41,35 @@ const app = express();
 const httpServer = createServer(app);
 
 // --- RECTIFIED CORS CONFIGURATION ---
-// This ensures both local Vite and your production Vercel site can connect.
 const allowedOrigins = [
   process.env.CLIENT_URL,
-  "https://flex-fit-omega.vercel.app",
-  "http://localhost:5173", 
-  "http://localhost:3000"
+  "http://localhost:5173",
+  "http://localhost:3000",
 ].filter(Boolean);
 
-const io = new Server(httpServer, {
-  cors: { 
-    origin: allowedOrigins, 
-    credentials: true 
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    // Dynamic check for production and local dev
+    if (
+      origin.endsWith(".vercel.app") || 
+      allowedOrigins.includes(origin)
+    ) {
+      return callback(null, true);
+    }
+    callback(new Error("Not allowed by CORS: " + origin));
   },
-});
+  credentials: true,
+};
+
+// Merged Socket.io declaration
+const io = new Server(httpServer, { cors: corsOptions });
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
-
-app.use(cors({ 
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl)
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  }, 
-  credentials: true 
-}));
+app.use(cors(corsOptions));
 // ------------------------------------
 
 app.use(morgan("dev"));
-// Raw body for Razorpay webhook
 app.use("/api/payments/webhook", express.raw({ type: "application/json" }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
@@ -80,7 +78,6 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.get("/api/health", (_, res) => res.json({ ok: true, version: 4 }));
 app.get("/api/vapid-public-key", (_, res) => res.json({ key: getVapidPublicKey() }));
 
-// Push subscription save
 app.post("/api/push/subscribe", async (req, res) => {
   try {
     const token = req.headers.authorization?.split(" ")[1];
@@ -91,6 +88,7 @@ app.post("/api/push/subscribe", async (req, res) => {
   } catch { res.status(400).json({ ok: false }); }
 });
 
+// Route mounting
 app.use("/api/auth",           authRoutes);
 app.use("/api/trainers",       trainerRoutes);
 app.use("/api/clients",        clientRoutes);
@@ -107,10 +105,11 @@ app.use("/api/orders",         orderRoutes);
 app.use("/api/vendors",        vendorRoutes);
 app.use("/api/group-chat",     groupChatRoutes);
 app.use("/api/proof",          proofOfWorkRoutes);
+
 app.use(notFound);
 app.use(errorHandler);
 
-// ── SOCKET.IO ──────────────────────────────────────────────────────────────────
+// ── SOCKET.IO LOGIC ─────────────────────────────────────────────────────────────
 const onlineUsers = new Map();
 
 io.use(async (socket, next) => {
@@ -131,26 +130,23 @@ io.on("connection", (socket) => {
   io.emit("online_users", Array.from(onlineUsers.keys()));
   socket.join(userId);
 
-  // ── Direct message ──
   socket.on("send_message", async ({ receiverId, text }) => {
     if (!receiverId || !text?.trim()) return;
     try {
       const msg = await saveMessage(socket.user._id, receiverId, text.trim());
       const payload = {
         _id: msg._id,
-        sender:   { _id: socket.user._id, name: socket.user.name, role: socket.user.role },
+        sender: { _id: socket.user._id, name: socket.user.name, role: socket.user.role },
         receiver: { _id: receiverId },
-        message:  msg.message,
+        message: msg.message,
         createdAt: msg.createdAt,
       };
       io.to(receiverId).emit("receive_message", payload);
       socket.emit("message_sent", payload);
-      // Push notification to receiver
       await sendPushToUser(receiverId, `New message from ${socket.user.name}`, text.trim().slice(0, 80), { type: "message" });
     } catch { socket.emit("error", { message: "Failed to send message" }); }
   });
 
-  // ── Group chat ──
   socket.on("join_group", (programId) => { socket.join(`group_${programId}`); });
   socket.on("leave_group", (programId) => { socket.leave(`group_${programId}`); });
 
@@ -159,18 +155,16 @@ io.on("connection", (socket) => {
     try {
       const msg = await saveGroupMessage(programId, socket.user._id, text.trim(), type || "text");
       const payload = {
-        _id:      msg._id,
-        sender:   { _id: socket.user._id, name: socket.user.name, role: socket.user.role },
-        message:  msg.message,
-        type:     msg.type,
+        _id: msg._id,
+        sender: { _id: socket.user._id, name: socket.user.name, role: socket.user.role },
+        message: msg.message,
+        type: msg.type,
         createdAt: msg.createdAt,
       };
-      // Broadcast to everyone in the group room
       io.to(`group_${programId}`).emit("group_message", payload);
     } catch { socket.emit("error", { message: "Failed to send group message" }); }
   });
 
-  // ── Typing ──
   socket.on("typing", ({ receiverId, isTyping }) => {
     io.to(receiverId).emit("user_typing", { senderId: userId, isTyping });
   });
@@ -186,4 +180,4 @@ io.on("connection", (socket) => {
 });
 
 const PORT = process.env.PORT || 5000;
-httpServer.listen(PORT, () => console.log(`✅ FlexFit v4 running on http://localhost:${PORT}`));
+httpServer.listen(PORT, () => console.log(`✅ FlexFit running on http://localhost:${PORT}`));
