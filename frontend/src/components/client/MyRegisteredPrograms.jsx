@@ -325,22 +325,44 @@ function ProgressSummary({ programId, token }) {
 // ── Live Sessions for a Program ───────────────────────────────────────────────
 function ProgramSessions({ programId, trainerId, token }) {
   const [sessions, setSessions] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
+        // Fetch all sessions for enrolled trainers — no extra filter needed
         const res = await api.get(`/sessions/for-me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        setSessions((res.data.sessions || []).filter(s =>
+        const all = res.data.sessions || [];
+        // Show sessions that belong to this specific program OR this trainer
+        const relevant = all.filter(s => {
+          const matchProgram = s.program && String(s.program?._id || s.program) === String(programId);
+          const matchTrainer = s.trainer && (
+            String(s.trainer?._id) === String(trainerId) ||
+            String(s.trainer) === String(trainerId)
+          );
+          return matchProgram || matchTrainer;
+        });
+        // If no filtered results but there are sessions, show all (trainer may not link to program)
+        setSessions(relevant.length > 0 ? relevant : all.filter(s =>
           String(s.trainer?._id) === String(trainerId) ||
-          String(s.program?._id) === String(programId)
+          String(s.trainer) === String(trainerId)
         ));
-      } catch {}
+      } catch {} finally { setLoading(false); }
     })();
   }, [programId, trainerId]);
 
-  if (sessions.length === 0) return null;
+  if (loading) return (
+    <div style={{ padding:"20px 0", color:"var(--text3)", fontSize:"13px" }}>Loading sessions…</div>
+  );
+
+  if (sessions.length === 0) return (
+    <div className="empty-state" style={{ padding:"28px" }}>
+      <div className="empty-state-icon">🎥</div>
+      <div className="empty-state-text">No live sessions scheduled yet. Your trainer will add sessions here.</div>
+    </div>
+  );
 
   return (
     <div style={{ marginBottom: "16px" }}>
