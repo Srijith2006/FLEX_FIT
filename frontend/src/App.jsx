@@ -10,7 +10,7 @@ import Pricing from "./pages/Pricing.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 
 // New Components
-import Marketplace from "./components/common/Marketplace.jsx";
+import Marketplace from "./components/common/MarketPlace.jsx";
 import VendorDashboard from "./components/vendor/VendorDashboard.jsx";
 import GroupChat from "./components/common/GroupChat.jsx";
 
