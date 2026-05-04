@@ -42,7 +42,9 @@ const httpServer = createServer(app);
 // --- RECTIFIED CORS CONFIGURATION ---
 // This ensures both local Vite and your production Vercel site can connect.
 const allowedOrigins = [
-  process.env.CLIENT_URL, // e.g., https://flex-fit-plum.vercel.app
+  process.env.CLIENT_URL,
+  process.env.CLIENT_URL_2, // e.g., 
+  "https://flex-fit-plum.vercel.app",
   "http://localhost:5173", 
   "http://localhost:3000"
 ].filter(Boolean);
