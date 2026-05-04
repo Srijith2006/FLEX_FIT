@@ -1,6 +1,9 @@
 ﻿import { Link, useNavigate } from "react-router-dom";
 import useAuth from "../../hooks/useAuth.js";
 
+// RECTIFIED: Matching the exact casing seen in your folder structure (image_b6d7c1.png)
+import MarketPlace from "./MarketPlace.jsx"; 
+
 export default function Navbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -10,13 +13,17 @@ export default function Navbar() {
     navigate("/");
   };
 
-  const initials = user?.name ? user.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) : "?";
+  // Generate initials for the avatar
+  const initials = user?.name 
+    ? user.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) 
+    : "?";
 
+  // Logic for role-based badge styling
   const roleBadgeClass = {
     client: "badge-client",
     trainer: "badge-trainer",
     admin: "badge-admin",
-    vendor: "badge-vendor", // Added vendor class
+    vendor: "badge-vendor",
   }[user?.role] || "badge-client";
 
   return (
@@ -30,14 +37,14 @@ export default function Navbar() {
           <Link to="/" className="hide-mobile">Home</Link>
           <Link to="/pricing" className="hide-mobile">Pricing</Link>
           
-          {/* Marketplace is visible to everyone */}
+          {/* Marketplace link - visible to everyone */}
           <Link to="/marketplace">Marketplace</Link>
 
           {user ? (
             <>
               <Link to="/dashboard">Dashboard</Link>
               
-              {/* Only show Vendor Portal if the user is a vendor */}
+              {/* Conditional link for Vendors */}
               {user.role === "vendor" && (
                 <Link to="/vendor/dashboard" className="text-accent">Vendor Portal</Link>
               )}
@@ -47,6 +54,7 @@ export default function Navbar() {
                 <span className="nav-user-name">{user.name.split(" ")[0]}</span>
                 <span className={`nav-badge ${roleBadgeClass}`}>{user.role}</span>
               </div>
+              
               <button className="btn btn-outline btn-sm" onClick={handleLogout}>
                 Logout
               </button>
