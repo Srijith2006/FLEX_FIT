@@ -16,6 +16,7 @@ export default function Navbar() {
     client: "badge-client",
     trainer: "badge-trainer",
     admin: "badge-admin",
+    vendor: "badge-vendor", // Added vendor class
   }[user?.role] || "badge-client";
 
   return (
@@ -28,10 +29,19 @@ export default function Navbar() {
         <nav className="navlinks">
           <Link to="/" className="hide-mobile">Home</Link>
           <Link to="/pricing" className="hide-mobile">Pricing</Link>
+          
+          {/* Marketplace is visible to everyone */}
+          <Link to="/marketplace">Marketplace</Link>
 
           {user ? (
             <>
               <Link to="/dashboard">Dashboard</Link>
+              
+              {/* Only show Vendor Portal if the user is a vendor */}
+              {user.role === "vendor" && (
+                <Link to="/vendor/dashboard" className="text-accent">Vendor Portal</Link>
+              )}
+
               <div className="nav-user">
                 <div className="nav-avatar">{initials}</div>
                 <span className="nav-user-name">{user.name.split(" ")[0]}</span>
