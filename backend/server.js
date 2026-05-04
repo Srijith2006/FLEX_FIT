@@ -39,12 +39,36 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const httpServer = createServer(app);
 
+// --- RECTIFIED CORS CONFIGURATION ---
+// This ensures both local Vite and your production Vercel site can connect.
+const allowedOrigins = [
+  process.env.CLIENT_URL, // e.g., https://flex-fit-plum.vercel.app
+  "http://localhost:5173", 
+  "http://localhost:3000"
+].filter(Boolean);
+
 const io = new Server(httpServer, {
-  cors: { origin: process.env.CLIENT_URL || "http://localhost:3000", credentials: true },
+  cors: { 
+    origin: allowedOrigins, 
+    credentials: true 
+  },
 });
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
-app.use(cors({ origin: process.env.CLIENT_URL || "http://localhost:3000", credentials: true }));
+
+app.use(cors({ 
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  }, 
+  credentials: true 
+}));
+// ------------------------------------
+
 app.use(morgan("dev"));
 // Raw body for Razorpay webhook
 app.use("/api/payments/webhook", express.raw({ type: "application/json" }));
