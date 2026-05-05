@@ -1,9 +1,6 @@
 ﻿import { Link, useNavigate } from "react-router-dom";
 import useAuth from "../../hooks/useAuth.js";
 
-// RECTIFIED: Matching the exact casing seen in your folder structure (image_b6d7c1.png)
-import MarketPlace from "./MarketPlace.jsx"; 
-
 export default function Navbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -13,18 +10,19 @@ export default function Navbar() {
     navigate("/");
   };
 
-  // Generate initials for the avatar
   const initials = user?.name 
     ? user.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) 
     : "?";
 
-  // Logic for role-based badge styling
   const roleBadgeClass = {
     client: "badge-client",
     trainer: "badge-trainer",
     admin: "badge-admin",
     vendor: "badge-vendor",
   }[user?.role] || "badge-client";
+
+  // Logic to check if user should see the Marketplace
+  const showMarketplace = user?.role === "client" || user?.role === "trainer";
 
   return (
     <header className="topbar">
@@ -37,14 +35,15 @@ export default function Navbar() {
           <Link to="/" className="hide-mobile">Home</Link>
           <Link to="/pricing" className="hide-mobile">Pricing</Link>
           
-          {/* Marketplace link - visible to everyone */}
-          <Link to="/marketplace">Marketplace</Link>
+          {/* Marketplace link - Restricted to Client and Trainer */}
+          {showMarketplace && (
+            <Link to="/marketplace" className="text-highlight">Marketplace</Link>
+          )}
 
           {user ? (
             <>
               <Link to="/dashboard">Dashboard</Link>
               
-              {/* Conditional link for Vendors */}
               {user.role === "vendor" && (
                 <Link to="/vendor/dashboard" className="text-accent">Vendor Portal</Link>
               )}
