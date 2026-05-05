@@ -94,6 +94,7 @@ export default function Dashboard() {
       if (activeTab === "verification") return <VerificationStatus />;
       if (activeTab === "profile")      return <TrainerProfileView />;
     }
+    if (user?.role === "vendor") return <VendorDashboard />;
 
     return null;
   };
