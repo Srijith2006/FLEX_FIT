@@ -46,7 +46,6 @@ function OrderCard({ order, onStatusUpdate }) {
         </div>
       </div>
 
-      {/* Items */}
       <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginBottom: "10px" }}>
         {order.items.map((item, i) => (
           <div key={i} style={{ display: "flex", justifyContent: "space-between",
@@ -64,7 +63,6 @@ function OrderCard({ order, onStatusUpdate }) {
         </div>
       )}
 
-      {/* Pipeline progress */}
       <div style={{ display: "flex", gap: "4px", marginBottom: "12px" }}>
         {STATUS_PIPELINE.map(s => (
           <div key={s} style={{
@@ -96,6 +94,7 @@ export default function VendorDashboard() {
   const [tab, setTab] = useState("overview");
   const [loading, setLoading] = useState(true);
   const [registering, setRegistering] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [regForm, setRegForm] = useState({ businessName:"", businessType:"supplements", description:"", city:"" });
   const [msg, setMsg] = useState({ type:"", text:"" });
 
@@ -125,6 +124,33 @@ export default function VendorDashboard() {
     finally { setRegistering(false); }
   };
 
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("certificate", file);
+
+    setUploading(true);
+    setMsg({ type: "info", text: "Uploading document..." });
+    
+    try {
+      // Endpoint updated to match the put logic for certificates
+      const res = await api.put("/vendors/me/certificate", formData, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data" 
+        }
+      });
+      setVendor(res.data.vendor);
+      setMsg({ type: "success", text: "Certificate uploaded! Admin will review it shortly." });
+    } catch (err) {
+      setMsg({ type: "error", text: "Upload failed. Please try again." });
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const updateStatus = async (orderId, status) => {
     await api.patch(`/orders/${orderId}/status`, { status }, { headers:{ Authorization:`Bearer ${token}` } });
     setOrders(prev => prev.map(o => o._id === orderId ? { ...o, status } : o));
@@ -132,7 +158,6 @@ export default function VendorDashboard() {
 
   if (loading) return <div className="card loading-screen" style={{minHeight:"200px"}}><div className="spinner"></div></div>;
 
-  // Registration form
   if (!vendor) return (
     <div className="card">
       <h3 className="font-heading" style={{ fontSize:"22px", marginBottom:"8px" }}>Become a Vendor</h3>
@@ -179,24 +204,60 @@ export default function VendorDashboard() {
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:"16px" }}>
-      {/* Vendor header */}
+      {/* Vendor Profile Header (Removed Admin Panel label) */}
       <div className="card" style={{ padding:"16px" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div>
-            <div style={{ fontWeight:700, fontSize:"18px" }}>{vendor.businessName}</div>
-            <div style={{ fontSize:"13px", color:"var(--text3)" }}>{vendor.businessType} · {vendor.city}</div>
+            <div style={{ fontWeight:700, fontSize:"20px" }}>{vendor.businessName}</div>
+            <div style={{ fontSize:"13px", color:"var(--text3)", marginTop: "2px" }}>
+              {vendor.businessType.replace('_', ' ')} · {vendor.city}
+            </div>
           </div>
-          <span className={`tag tag-${vendor.verificationStatus}`}>{vendor.verificationStatus}</span>
+          <span className={`tag tag-${vendor.verificationStatus}`} style={{ textTransform: 'capitalize' }}>
+            {vendor.verificationStatus}
+          </span>
         </div>
       </div>
 
-      {vendor.verificationStatus !== "approved" && (
-        <div className="alert alert-info">
-          ⏳ Your vendor account is pending admin verification. You can add products now but they won't be visible until approved.
+      {msg.text && (
+        <div className={`alert alert-${msg.type === "error" ? "error" : msg.type === "info" ? "info" : "success"}`}>
+          {msg.text}
+          <button onClick={() => setMsg({type:"",text:""})} style={{ background:"none", border:"none", marginLeft:"auto", cursor:"pointer", color:"inherit" }}>✕</button>
         </div>
       )}
 
-      {/* Stats */}
+      {/* Verification Document Upload Section */}
+      {vendor.verificationStatus !== "approved" && (
+        <div className="card" style={{ border: "1px solid var(--accent2)", background: "rgba(0,112,243,0.05)" }}>
+          <h4 style={{ marginBottom: "8px", display: "flex", alignItems: "center", gap: "8px" }}>
+            📜 Business Verification
+          </h4>
+          <p style={{ fontSize: "13px", color: "var(--text2)", marginBottom: "12px" }}>
+            Upload your business license, FSSAI certificate, or ID proof for admin review.
+          </p>
+          <div className="form-group">
+            <input 
+              type="file" 
+              className="form-input" 
+              accept=".pdf,.jpg,.jpeg,.png"
+              onChange={handleFileUpload}
+              disabled={uploading}
+            />
+            {vendor.certificateUrl && (
+              <div style={{ marginTop: "10px", fontSize: "12px", color: "var(--green)", fontWeight: 500 }}>
+                ✓ Document uploaded: <a href={vendor.certificateUrl} target="_blank" rel="noreferrer" style={{ color: "var(--accent)", textDecoration: "underline" }}>View Current File</a>
+              </div>
+            )}
+          </div>
+          {vendor.verificationStatus === "pending" && (
+             <div style={{ marginTop: "12px", fontSize: "12px", color: "var(--text3)" }}>
+              ⏳ Your account is awaiting admin approval. You can prepare your products in the meantime.
+             </div>
+          )}
+        </div>
+      )}
+
+      {/* Stats Section */}
       <div className="grid-3">
         <div className="stat-card">
           <div style={{fontSize:"22px",marginBottom:"8px"}}>📦</div>
@@ -205,17 +266,17 @@ export default function VendorDashboard() {
         </div>
         <div className="stat-card">
           <div style={{fontSize:"22px",marginBottom:"8px"}}>✅</div>
-          <div className="stat-card-value" style={{color:"var(--green)"}}>{vendor.totalOrders}</div>
+          <div className="stat-card-value" style={{color:"var(--green)"}}>{vendor.totalOrders || 0}</div>
           <div className="stat-card-label">total delivered</div>
         </div>
         <div className="stat-card">
           <div style={{fontSize:"22px",marginBottom:"8px"}}>💰</div>
-          <div className="stat-card-value" style={{color:"var(--gold)"}}>₹{vendor.totalRevenue?.toLocaleString()}</div>
+          <div className="stat-card-value" style={{color:"var(--gold)"}}>₹{vendor.totalRevenue?.toLocaleString() || 0}</div>
           <div className="stat-card-label">total revenue</div>
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Content Tabs */}
       <div className="tabs">
         {["overview","orders","products"].map(t => (
           <button key={t} className={`tab-btn ${tab===t?"active":""}`}
@@ -249,7 +310,7 @@ export default function VendorDashboard() {
                   padding:"12px 14px", background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:"var(--radius)" }}>
                   <div>
                     <div style={{fontWeight:700,fontSize:"14px"}}>{p.name}</div>
-                    <div style={{fontSize:"12px",color:"var(--text3)"}}>₹{p.price} · {p.category} · {p.totalSold} sold</div>
+                    <div style={{fontSize:"12px",color:"var(--text3)"}}>₹{p.price} · {p.category} · {p.totalSold || 0} sold</div>
                   </div>
                   <span className={`tag ${p.isAvailable?"tag-approved":"tag-rejected"}`}>
                     {p.isAvailable?"Available":"Unavailable"}

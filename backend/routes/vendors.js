@@ -12,6 +12,7 @@ const router = express.Router();
 router.post("/register",            protect, authorize("vendor"), registerVendor);
 router.get("/me",                   protect, authorize("vendor"), getMyVendorProfile);
 router.put("/me",                   protect, authorize("vendor"), updateVendorProfile);
+router.put("/me/certificate", protect, authorize("vendor"), upload.single("certificate"), updateVendorProfile);
 router.get("/all",                  protect, authorize("admin"),  listAllVendors);
 router.patch("/:vendorId/review",   protect, authorize("admin"),  reviewVendor);
 router.post("/products",            protect, authorize("vendor"), createProduct);
