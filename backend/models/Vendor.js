@@ -2,7 +2,9 @@ import mongoose from "mongoose";
 
 const vendorSchema = new mongoose.Schema({
   user:               { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, unique: true },
-  businessName:       { type: String, required: true },
+  // businessName is NOT required at schema level — vendor completes profile after registration
+  // The controller enforces it when calling registerVendor (POST /api/vendors/register)
+  businessName:       { type: String, default: "" },
   businessType:       { type: String, enum: ["supplements","meal_kitchen","equipment","apparel","other"], default: "supplements" },
   description:        { type: String, default: "" },
   phone:              { type: String, default: "" },
@@ -10,7 +12,7 @@ const vendorSchema = new mongoose.Schema({
   city:               { type: String, default: "" },
   gstNumber:          { type: String, default: "" },
   logoUrl:            { type: String, default: "" },
-  certificateUrl:     { type: String, default: "" },   // COA / FSSAI
+  certificateUrl:     { type: String, default: "" },   // License / FSSAI cert — viewable by admin
   verificationStatus: { type: String, enum: ["pending","approved","rejected"], default: "pending" },
   rejectionReason:    { type: String, default: "" },
   totalOrders:        { type: Number, default: 0 },
