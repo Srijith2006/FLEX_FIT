@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import api from "../services/api.js";
+import api from "../../services/api.js";
 
 const BUSINESS_TYPES = [
   { value: "supplements", label: "Supplements" },
