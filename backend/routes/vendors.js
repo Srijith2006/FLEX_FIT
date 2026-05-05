@@ -37,3 +37,5 @@ router.delete("/products/:productId", protect, authorize("vendor"), deleteProduc
 // PATCH /api/vendors/:id/review  — approve or reject a vendor
 router.get("/all",                    protect, authorize("admin"), listAllVendors);
 router.patch("/:vendorId/review",     protect, authorize("admin"), reviewVendor);
+
+export default router;
