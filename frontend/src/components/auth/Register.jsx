@@ -1,10 +1,12 @@
-﻿import { useState } from "react";
+﻿// src/components/auth/Register.jsx
+import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import useAuth from "../../hooks/useAuth.js";
 
 const ROLES = [
   { value: "client", label: "Client", icon: "🏃", desc: "Find trainers & track progress" },
   { value: "trainer", label: "Trainer", icon: "💪", desc: "Offer coaching & build clients" },
+  { value: "vendor", label: "Vendor", icon: "🏪", desc: "Sell fitness products & meals" }, // Added Vendor Role
 ];
 
 export default function Register() {
@@ -23,7 +25,12 @@ export default function Register() {
     setLoading(true);
     try {
       await register(form);
-      nav("/dashboard");
+      // Logic for redirecting based on role
+      if (form.role === "vendor") {
+        nav("/vendor/dashboard");
+      } else {
+        nav("/dashboard");
+      }
     } catch (err) {
       setError(err?.response?.data?.message || "Registration failed.");
     } finally {
@@ -39,7 +46,7 @@ export default function Register() {
 
         <form onSubmit={submit} className="auth-form-stack">
           {/* Role Selector */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
             {ROLES.map((r) => (
               <div
                 key={r.value}
