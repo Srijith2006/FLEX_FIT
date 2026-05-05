@@ -23,6 +23,7 @@ import VerificationStatus   from "../components/trainer/VerificationStatus.jsx";
 import Inbox                from "../components/common/Inbox.jsx";
 import GroupChatList        from "../components/common/GroupChatList.jsx";
 import AdminDashboard       from "../components/admin/AdminDashboard.jsx";
+import VendorDashboard      from "../components/Vendor/VendorDashboard";
 
 const CLIENT_TABS = [
   { id: "overview",    icon: "📊", label: "Overview"        },
