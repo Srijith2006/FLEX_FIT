@@ -43,10 +43,6 @@ export default function Navbar() {
           {user ? (
             <>
               <Link to="/dashboard">Dashboard</Link>
-              
-              {user.role === "vendor" && (
-                <Link to="/vendor/dashboard" className="text-accent">Vendor Portal</Link>
-              )}
 
               <div className="nav-user">
                 <div className="nav-avatar">{initials}</div>
