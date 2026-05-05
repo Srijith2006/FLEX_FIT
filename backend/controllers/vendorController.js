@@ -9,10 +9,22 @@ export const registerVendor = async (req, res, next) => {
     const { businessName, businessType, description, phone, address, city, gstNumber } = req.body;
     if (!businessName) return res.status(400).json({ message: "businessName is required" });
 
+    // 1. Create the Vendor profile document
     const vendor = await Vendor.create({
-      user: req.user._id, businessName, businessType, description,
-      phone, address, city, gstNumber,
+      user: req.user._id, 
+      businessName, 
+      businessType, 
+      description,
+      phone, 
+      address, 
+      city, 
+      gstNumber,
     });
+
+    // 2. RECTIFICATION: Update the User's role in the database to 'vendor'[cite: 3]
+    // This allows the authorize("vendor") middleware to pass for future requests[cite: 4]
+    await User.findByIdAndUpdate(req.user._id, { role: "vendor" });
+
     res.status(201).json({ vendor });
   } catch (error) { next(error); }
 };
@@ -41,6 +53,8 @@ export const createProduct = async (req, res, next) => {
   try {
     const vendor = await Vendor.findOne({ user: req.user._id });
     if (!vendor) return res.status(404).json({ message: "Vendor not found" });
+    
+    // Note: Products can only be listed once admin approves the vendor[cite: 2]
     if (vendor.verificationStatus !== "approved")
       return res.status(403).json({ message: "Only verified vendors can list products" });
 
