@@ -1,6 +1,6 @@
 ﻿import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { User, Trainer, Client } from "../models/index.js";
+import { User, Trainer, Client, Vendor } from "../models/index.js";
 
 const tokenFor = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET || "flexfit_secret", { expiresIn: "7d" });
@@ -27,11 +27,12 @@ export const register = async (req, res, next) => {
     if (existing) return res.status(400).json({ message: "Email already registered" });
 
     const hashed = await bcrypt.hash(password, 10);
-    const safeRole = ["client", "trainer", "admin"].includes(role) ? role : "client";
+    const safeRole = ["client", "trainer", "vendor", "admin"].includes(role) ? role : "client";
     const user = await User.create({ name: name.trim(), email: email.toLowerCase().trim(), password: hashed, role: safeRole });
 
     if (safeRole === "trainer") await Trainer.create({ user: user._id });
     if (safeRole === "client") await Client.create({ user: user._id });
+    if (safeRole === "vendor") await Vendor.create({ user: user._id });
 
     return res.status(201).json({
       token: tokenFor(user._id),
