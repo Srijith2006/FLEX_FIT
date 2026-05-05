@@ -12,40 +12,45 @@ import ProgressTracker      from "../components/client/ProgressTracker.jsx";
 import ClientProfile        from "../components/client/ClientProfile.jsx";
 
 // Trainer components
-import TrainerOverview      from "../components/trainer/TrainerOverview.jsx";
-import TrainerProfileView   from "../components/trainer/TrainerProfileView.jsx";
+import TrainerOverview       from "../components/trainer/TrainerOverview.jsx";
+import TrainerProfileView    from "../components/trainer/TrainerProfileView.jsx";
 import TrainerProgramManager from "../components/trainer/TrainerProgramManager.jsx";
 import TrainerProgramBuilder from "../components/trainer/TrainerProgramBuilder.jsx";
-import LiveSessionManager   from "../components/trainer/LiveSessionManager.jsx";
-import VerificationStatus   from "../components/trainer/VerificationStatus.jsx";
+import LiveSessionManager    from "../components/trainer/LiveSessionManager.jsx";
+import VerificationStatus    from "../components/trainer/VerificationStatus.jsx";
 
-// Shared
-import Inbox                from "../components/common/Inbox.jsx";
-import GroupChatList        from "../components/common/GroupChatList.jsx";
-import AdminDashboard       from "../components/admin/AdminDashboard.jsx";
-import VendorDashboard      from "../components/Vendor/VendorDashboard.jsx";
+// Shared & Specialized
+import Inbox                 from "../components/common/Inbox.jsx";
+import GroupChatList         from "../components/common/GroupChatList.jsx";
+import AdminDashboard        from "../components/admin/AdminDashboard.jsx";
+import VendorDashboard       from "../components/Vendor/VendorDashboard.jsx";
 
 const CLIENT_TABS = [
-  { id: "overview",    icon: "📊", label: "Overview"        },
-  { id: "myprograms",  icon: "📚", label: "My Programs"     },
-  { id: "marketplace", icon: "🏪", label: "Browse Programs" },
-  { id: "trainers",    icon: "🔍", label: "Find Trainers"   },
-  { id: "workouts",    icon: "🏋️", label: "Log Workout"    },
-  { id: "progress",    icon: "📈", label: "Progress"        },
-  { id: "groupchat",   icon: "👥", label: "Group Chats"     },
-  { id: "messages",    icon: "💬", label: "Messages"        },
-  { id: "profile",     icon: "👤", label: "Profile"         },
+  { id: "overview",    icon: "📊", label: "Overview"         },
+  { id: "myprograms",  icon: "📚", label: "My Programs"      },
+  { id: "marketplace", icon: "🏪", label: "Browse Programs"  },
+  { id: "trainers",    icon: "🔍", label: "Find Trainers"    },
+  { id: "workouts",    icon: "🏋️", label: "Log Workout"     },
+  { id: "progress",    icon: "📈", label: "Progress"         },
+  { id: "groupchat",   icon: "👥", label: "Group Chats"      },
+  { id: "messages",    icon: "💬", label: "Messages"         },
+  { id: "profile",     icon: "👤", label: "Profile"          },
 ];
 
 const TRAINER_TABS = [
-  { id: "overview",     icon: "📊", label: "Overview"        },
-  { id: "manage",       icon: "👥", label: "Manage Programs" },
-  { id: "builder",      icon: "📋", label: "Create Program"  },
-  { id: "sessions",     icon: "🎥", label: "Live Sessions"   },
-  { id: "groupchat",    icon: "👥", label: "Group Chats"     },
-  { id: "messages",     icon: "💬", label: "Messages"        },
-  { id: "verification", icon: "✅", label: "Verification"    },
-  { id: "profile",      icon: "👤", label: "My Profile"      },
+  { id: "overview",     icon: "📊", label: "Overview"         },
+  { id: "manage",       icon: "👥", label: "Manage Programs"  },
+  { id: "builder",      icon: "📋", label: "Create Program"   },
+  { id: "sessions",     icon: "🎥", label: "Live Sessions"    },
+  { id: "groupchat",    icon: "👥", label: "Group Chats"      },
+  { id: "messages",     icon: "💬", label: "Messages"         },
+  { id: "verification", icon: "✅", label: "Verification"     },
+  { id: "profile",      icon: "👤", label: "My Profile"       },
+];
+
+// RECTIFICATION: Added dedicated Vendor tabs
+const VENDOR_TABS = [
+  { id: "overview", icon: "🏪", label: "Vendor Panel" },
 ];
 
 const ADMIN_TABS = [
@@ -54,9 +59,13 @@ const ADMIN_TABS = [
 
 export default function Dashboard() {
   const { user, token } = useAuth();
+  
+  // RECTIFICATION: Role-based tab selection logic
   const tabs = user?.role === "client"  ? CLIENT_TABS
              : user?.role === "trainer" ? TRAINER_TABS
+             : user?.role === "vendor"  ? VENDOR_TABS
              : ADMIN_TABS;
+
   const [activeTab, setActiveTab] = useState("overview");
 
   // Register push notifications on mount
@@ -66,12 +75,19 @@ export default function Dashboard() {
 
   const initials = user?.name
     ? user.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) : "?";
+
   const roleBadgeClass = {
-    client: "badge-client", trainer: "badge-trainer", admin: "badge-admin", vendor: "badge-admin",
+    client: "badge-client", 
+    trainer: "badge-trainer", 
+    admin: "badge-admin", 
+    vendor: "badge-trainer", // Using trainer colors for vendor theme
   }[user?.role] || "badge-client";
 
   const renderContent = () => {
     if (user?.role === "admin") return <AdminDashboard />;
+    
+    // RECTIFICATION: Render VendorDashboard only for vendor role
+    if (user?.role === "vendor") return <VendorDashboard />;
 
     if (user?.role === "client") {
       if (activeTab === "overview")    return <ClientOverview />;
@@ -95,7 +111,6 @@ export default function Dashboard() {
       if (activeTab === "verification") return <VerificationStatus />;
       if (activeTab === "profile")      return <TrainerProfileView />;
     }
-    if (user?.role === "vendor") return <VendorDashboard />;
 
     return null;
   };
