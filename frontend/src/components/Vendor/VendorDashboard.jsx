@@ -406,14 +406,12 @@ function ProductsTab({ products, isApproved, token, onRefresh }) {
               {/* Image thumbnail */}
               <div style={{ width:"52px", height:"52px", borderRadius:"8px", overflow:"hidden", flexShrink:0,
                 background:"var(--bg2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"22px" }}>
-                {p.imageUrl ? (
-                  <img src={p.imageUrl} alt={p.name}
-                    style={{ width:"100%", height:"100%", objectFit:"cover" }}
-                    onError={e => { e.target.outerHTML = `<span style="font-size:22px">${CATEGORY_ICONS[p.category]||"📦"}</span>`; }}
-                  />
-                ) : (
-                  <span>{CATEGORY_ICONS[p.category]||"📦"}</span>
-                )}
+                {p.imageUrl
+                  ? <img src={p.imageUrl} alt={p.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}
+                      onError={e => { e.target.style.display="none"; e.target.nextSibling.style.display="flex"; }}
+                    />
+                  : null}
+                <span style={{ display: p.imageUrl ? "none" : "flex" }}>{CATEGORY_ICONS[p.category]||"📦"}</span>
               </div>
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontWeight:700, fontSize:"14px" }}>{p.name}</div>
@@ -656,7 +654,12 @@ export default function VendorDashboard() {
           products={products}
           isApproved={isApproved}
           token={token}
-          onRefresh={loadAll}
+          onRefresh={() => {
+            api.get("/vendors/products/mine", { headers:{ Authorization:`Bearer ${token}` } })
+              .then(r => setProducts(r.value?.data?.products || r.data?.products || []))
+              .catch(() => {});
+            loadAll();
+          }}
         />
       )}
     </div>
