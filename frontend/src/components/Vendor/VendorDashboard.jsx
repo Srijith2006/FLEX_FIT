@@ -94,13 +94,36 @@ function OrderCard({ order, onStatusUpdate }) {
 }
 
 // ── Product Form Modal ─────────────────────────────────────────────────────────
-function ProductFormModal({ initial, onSave, onClose, saving }) {
+function ProductFormModal({ initial, onSave, onClose, saving, token }) {
   const [form, setForm] = useState(initial || EMPTY_PRODUCT);
-  const [imgError, setImgError] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [preview, setPreview] = useState(initial?.imageUrl || "");
   const h = (f) => (e) => setForm(p => ({ ...p, [f]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
 
   const labelStyle = { fontSize:"11px", fontWeight:700, color:"var(--text3)", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:"5px", display:"block" };
   const inputStyle = { width:"100%", background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:"8px", padding:"9px 12px", color:"var(--text)", fontSize:"13px", outline:"none", boxSizing:"border-box" };
+
+  const handleImageFile = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    // Show local preview immediately
+    const localUrl = URL.createObjectURL(file);
+    setPreview(localUrl);
+    // Upload to backend
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await api.post("/uploads", fd, {
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" },
+      });
+      const serverUrl = res.data.fileUrl;
+      setForm(p => ({ ...p, imageUrl: serverUrl }));
+      setPreview(serverUrl);
+    } catch {
+      // Keep local preview, user will see image even if upload failed
+    } finally { setUploading(false); }
+  };
 
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.8)", zIndex:500, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", overflowY:"auto" }}>
@@ -110,44 +133,56 @@ function ProductFormModal({ initial, onSave, onClose, saving }) {
           <button onClick={onClose} style={{ background:"none", border:"none", fontSize:"20px", cursor:"pointer", color:"var(--text3)" }}>✕</button>
         </div>
 
-        {/* Image preview */}
+        {/* Image upload + preview */}
         <div style={{ marginBottom:"20px" }}>
-          <label style={labelStyle}>Product Image URL</label>
-          <input style={inputStyle} placeholder="https://example.com/product-image.jpg"
-            value={form.imageUrl}
-            onChange={e => { setImgError(false); setForm(p => ({ ...p, imageUrl: e.target.value })); }} />
-          <div style={{ fontSize:"11px", color:"var(--text3)", marginTop:"4px" }}>
-            Paste a public image URL (must start with https://). 
-            Upload to <a href="https://imgur.com" target="_blank" rel="noreferrer" style={{ color:"var(--accent)" }}>imgur.com</a> or <a href="https://postimages.org" target="_blank" rel="noreferrer" style={{ color:"var(--accent)" }}>postimages.org</a> to get a free URL.
+          <label style={labelStyle}>Product Image</label>
+
+          {/* Preview box */}
+          <div style={{ marginBottom:"12px", borderRadius:"10px", overflow:"hidden", height:"180px",
+            background:"var(--bg3)", border:"1px dashed var(--border)",
+            display:"flex", alignItems:"center", justifyContent:"center", position:"relative" }}>
+            {preview || form.imageUrl ? (
+              <img src={preview || form.imageUrl} alt="preview"
+                style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+            ) : (
+              <div style={{ textAlign:"center", color:"var(--text3)" }}>
+                <div style={{ fontSize:"36px", marginBottom:"6px" }}>{CATEGORY_ICONS[form.category] || "📦"}</div>
+                <div style={{ fontSize:"12px" }}>No image selected</div>
+              </div>
+            )}
+            {uploading && (
+              <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0.6)",
+                display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", color:"#fff", fontSize:"13px" }}>
+                <div className="spinner" style={{ borderTopColor:"#fff", width:"18px", height:"18px" }} />
+                Uploading…
+              </div>
+            )}
           </div>
-          {form.imageUrl && (
-            <div style={{ marginTop:"10px", borderRadius:"10px", overflow:"hidden", height:"160px", background:"var(--bg3)", display:"flex", alignItems:"center", justifyContent:"center", position:"relative" }}>
-              {!imgError ? (
-                <img
-                  src={form.imageUrl}
-                  alt="preview"
-                  referrerPolicy="no-referrer"
-                  crossOrigin="anonymous"
-                  onError={() => setImgError(true)}
-                  onLoad={() => setImgError(false)}
-                  style={{ width:"100%", height:"100%", objectFit:"cover" }}
-                />
-              ) : (
-                <div style={{ textAlign:"center", padding:"16px" }}>
-                  <div style={{ fontSize:"24px", marginBottom:"6px" }}>{CATEGORY_ICONS[form.category] || "📦"}</div>
-                  <div style={{ fontSize:"12px", color:"var(--text3)" }}>
-                    Preview unavailable — URL saved as-is.<br/>
-                    The image will show correctly in the marketplace.
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-          {!form.imageUrl && (
-            <div style={{ marginTop:"10px", borderRadius:"10px", height:"80px", background:"var(--bg3)", border:"1px dashed var(--border)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"28px", color:"var(--text3)" }}>
-              {CATEGORY_ICONS[form.category] || "📦"}
-            </div>
-          )}
+
+          {/* Upload from laptop */}
+          <div style={{ display:"flex", gap:"10px", alignItems:"center", flexWrap:"wrap" }}>
+            <label style={{ cursor:"pointer", flex:1 }}>
+              <div style={{ ...inputStyle, display:"flex", alignItems:"center", gap:"8px",
+                cursor:"pointer", background:"var(--bg3)", border:"1px dashed var(--border)" }}>
+                <span style={{ fontSize:"18px" }}>🖼</span>
+                <span style={{ color:"var(--text2)", fontSize:"13px" }}>
+                  {uploading ? "Uploading..." : "Choose image from your laptop"}
+                </span>
+              </div>
+              <input type="file" accept="image/*" onChange={handleImageFile}
+                disabled={uploading} style={{ display:"none" }} />
+            </label>
+          </div>
+
+          {/* OR paste URL */}
+          <div style={{ display:"flex", alignItems:"center", gap:"8px", margin:"10px 0" }}>
+            <div style={{ flex:1, height:"1px", background:"var(--border)" }} />
+            <span style={{ fontSize:"11px", color:"var(--text3)" }}>OR paste a URL</span>
+            <div style={{ flex:1, height:"1px", background:"var(--border)" }} />
+          </div>
+          <input style={inputStyle} placeholder="https://example.com/image.jpg"
+            value={form.imageUrl}
+            onChange={e => { setForm(p => ({ ...p, imageUrl: e.target.value })); setPreview(e.target.value); }} />
         </div>
 
         {/* Basic info */}
@@ -368,6 +403,7 @@ function ProductsTab({ products, isApproved, token, onRefresh }) {
           onSave={saveProduct}
           onClose={() => { setShowForm(false); setEditing(null); }}
           saving={saving}
+          token={token}
         />
       )}
     </div>
