@@ -257,3 +257,30 @@ export const updateOrderStatus = async (req, res, next) => {
     res.json({ order });
   } catch (error) { next(error); }
 };
+
+// ── Client — cancel order (only before shipped/delivered) ─────────────────────
+export const cancelOrder = async (req, res, next) => {
+  try {
+    const client = await Client.findOne({ user: req.user._id });
+    if (!client) return res.status(404).json({ message: "Client not found" });
+
+    const order = await Order.findOne({ _id: req.params.orderId, client: client._id });
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    // Only allow cancel before shipped or delivered
+    const nonCancellable = ["shipped", "delivered", "cancelled"];
+    if (nonCancellable.includes(order.status))
+      return res.status(400).json({ message: `Cannot cancel an order that is already ${order.status}.` });
+
+    const { reason } = req.body;
+    if (!reason?.trim()) return res.status(400).json({ message: "Cancellation reason is required." });
+
+    order.status = "cancelled";
+    order.cancellationReason = reason.trim();
+    order.cancelledBy = "client";
+    order.cancelledAt = new Date();
+    await order.save();
+
+    res.json({ message: "Order cancelled successfully.", order });
+  } catch (error) { next(error); }
+};

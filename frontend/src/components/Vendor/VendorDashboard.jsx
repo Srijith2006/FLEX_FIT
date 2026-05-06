@@ -81,6 +81,14 @@ function OrderCard({ order, onStatusUpdate }) {
       {order.status === "delivered" && (
         <div className="alert alert-success" style={{ fontSize:"12px", padding:"8px 12px" }}>✓ Order completed</div>
       )}
+      {order.status === "cancelled" && (
+        <div style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.2)", borderRadius:"8px", padding:"10px 12px", marginTop:"8px" }}>
+          <div style={{ fontSize:"12px", fontWeight:700, color:"var(--red)" }}>✕ Order Cancelled by Client</div>
+          {order.cancellationReason && (
+            <div style={{ fontSize:"12px", color:"var(--text2)", marginTop:"3px" }}>Reason: {order.cancellationReason}</div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
