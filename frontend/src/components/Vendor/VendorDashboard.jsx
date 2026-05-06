@@ -114,16 +114,34 @@ function ProductFormModal({ initial, onSave, onClose, saving }) {
         <div style={{ marginBottom:"20px" }}>
           <label style={labelStyle}>Product Image URL</label>
           <input style={inputStyle} placeholder="https://example.com/product-image.jpg"
-            value={form.imageUrl} onChange={h("imageUrl")} onFocus={() => setImgError(false)} />
-          {form.imageUrl && !imgError && (
-            <div style={{ marginTop:"10px", borderRadius:"10px", overflow:"hidden", height:"160px", background:"var(--bg3)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <img src={form.imageUrl} alt="preview"
-                onError={() => setImgError(true)}
-                style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+            value={form.imageUrl}
+            onChange={e => { setImgError(false); setForm(p => ({ ...p, imageUrl: e.target.value })); }} />
+          <div style={{ fontSize:"11px", color:"var(--text3)", marginTop:"4px" }}>
+            Paste a public image URL (must start with https://). 
+            Upload to <a href="https://imgur.com" target="_blank" rel="noreferrer" style={{ color:"var(--accent)" }}>imgur.com</a> or <a href="https://postimages.org" target="_blank" rel="noreferrer" style={{ color:"var(--accent)" }}>postimages.org</a> to get a free URL.
+          </div>
+          {form.imageUrl && (
+            <div style={{ marginTop:"10px", borderRadius:"10px", overflow:"hidden", height:"160px", background:"var(--bg3)", display:"flex", alignItems:"center", justifyContent:"center", position:"relative" }}>
+              {!imgError ? (
+                <img
+                  src={form.imageUrl}
+                  alt="preview"
+                  referrerPolicy="no-referrer"
+                  crossOrigin="anonymous"
+                  onError={() => setImgError(true)}
+                  onLoad={() => setImgError(false)}
+                  style={{ width:"100%", height:"100%", objectFit:"cover" }}
+                />
+              ) : (
+                <div style={{ textAlign:"center", padding:"16px" }}>
+                  <div style={{ fontSize:"24px", marginBottom:"6px" }}>{CATEGORY_ICONS[form.category] || "📦"}</div>
+                  <div style={{ fontSize:"12px", color:"var(--text3)" }}>
+                    Preview unavailable — URL saved as-is.<br/>
+                    The image will show correctly in the marketplace.
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-          {imgError && (
-            <div style={{ marginTop:"8px", fontSize:"12px", color:"var(--red)" }}>⚠ Could not load image. Check the URL.</div>
           )}
           {!form.imageUrl && (
             <div style={{ marginTop:"10px", borderRadius:"10px", height:"80px", background:"var(--bg3)", border:"1px dashed var(--border)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"28px", color:"var(--text3)" }}>
