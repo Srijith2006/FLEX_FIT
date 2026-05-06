@@ -3,7 +3,7 @@ import Razorpay from "razorpay";
 import { Client, Product, Order, Vendor, WorkoutCompletion } from "../models/index.js";
 
 const getRazorpay = () => {
-  const key_id     = process.env.RAZORPAY_KEY_ID;
+  const key_id = process.env.RAZORPAY_KEY_ID;
   const key_secret = process.env.RAZORPAY_KEY_SECRET;
   if (!key_id || !key_secret) throw new Error("Razorpay keys not configured");
   return new Razorpay({ key_id, key_secret });
@@ -45,8 +45,8 @@ export const createOrder = async (req, res, next) => {
     let streakDays = streak;
     if (streak >= 30) streakDiscountPct = 20;
     else if (streak >= 14) streakDiscountPct = 12;
-    else if (streak >= 7)  streakDiscountPct = 7;
-    else if (streak >= 3)  streakDiscountPct = 3;
+    else if (streak >= 7) streakDiscountPct = 7;
+    else if (streak >= 3) streakDiscountPct = 3;
 
     // Build order items with group buying logic
     let subtotal = 0;
@@ -89,24 +89,24 @@ export const createOrder = async (req, res, next) => {
     // Create Razorpay order
     const razorpay = getRazorpay();
     const rzpOrder = await razorpay.orders.create({
-      amount:   amountInPaise,
+      amount: amountInPaise,
       currency: "INR",
-      receipt:  `ord_${Date.now()}`,
+      receipt: `ord_${Date.now()}`,
     });
 
     // Save order as pending
     const order = await Order.create({
-      client:          client._id,
-      vendor:          vendorId,
-      items:           orderItems,
+      client: client._id,
+      vendor: vendorId,
+      items: orderItems,
       subtotal,
-      discount:        totalDiscount,
+      discount: totalDiscount,
       total,
       razorpayOrderId: rzpOrder.id,
       deliveryAddress: deliveryAddress || "",
-      deliveryPhone:   deliveryPhone || "",
-      notes:           notes || "",
-      streakDiscount:  streakDiscountPct,
+      deliveryPhone: deliveryPhone || "",
+      notes: notes || "",
+      streakDiscount: streakDiscountPct,
       streakDays,
     });
 
@@ -119,11 +119,11 @@ export const createOrder = async (req, res, next) => {
     }
 
     res.status(201).json({
-      orderId:    rzpOrder.id,
-      amount:     amountInPaise,
-      currency:   "INR",
-      orderDbId:  order._id,
-      keyId:      process.env.RAZORPAY_KEY_ID,
+      orderId: rzpOrder.id,
+      amount: amountInPaise,
+      currency: "INR",
+      orderDbId: order._id,
+      keyId: process.env.RAZORPAY_KEY_ID,
       total,
       streakDiscountPct,
       streakDays,
@@ -200,6 +200,44 @@ export const vendorOrders = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+// ── Retry Payment for a pending order ─────────────────────────────────────────
+export const retryOrderPayment = async (req, res, next) => {
+  try {
+    const client = await Client.findOne({ user: req.user._id });
+    if (!client) return res.status(404).json({ message: "Client not found" });
+
+    const order = await Order.findOne({ _id: req.params.orderId, client: client._id });
+    if (!order) return res.status(404).json({ message: "Order not found" });
+    if (order.isPaid) return res.status(400).json({ message: "Order already paid" });
+    if (order.status === "cancelled") return res.status(400).json({ message: "Order was cancelled" });
+
+    // Create a new Razorpay order for the same amount
+    const razorpay = getRazorpay();
+    const rzpOrder = await razorpay.orders.create({
+      amount: Math.round(order.total * 100),
+      currency: "INR",
+      receipt: `retry_${Date.now()}`,
+    });
+
+    // Update order with new Razorpay order ID
+    order.razorpayOrderId = rzpOrder.id;
+    await order.save();
+
+    res.json({
+      orderId: rzpOrder.id,
+      amount: rzpOrder.amount,
+      currency: rzpOrder.currency,
+      orderDbId: order._id,
+      keyId: process.env.RAZORPAY_KEY_ID,
+      total: order.total,
+    });
+  } catch (error) {
+    if (error.message === "Razorpay keys not configured")
+      return res.status(500).json({ message: "Payment gateway not configured" });
+    next(error);
+  }
+};
+
 // ── Vendor — update order status ───────────────────────────────────────────────
 export const updateOrderStatus = async (req, res, next) => {
   try {
@@ -207,7 +245,7 @@ export const updateOrderStatus = async (req, res, next) => {
     if (!vendor) return res.status(404).json({ message: "Vendor not found" });
 
     const { status } = req.body;
-    const allowed = ["confirmed","preparing","shipped","delivered","cancelled"];
+    const allowed = ["confirmed", "preparing", "shipped", "delivered", "cancelled"];
     if (!allowed.includes(status)) return res.status(400).json({ message: "Invalid status" });
 
     const order = await Order.findOneAndUpdate(
