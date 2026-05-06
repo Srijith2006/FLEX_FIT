@@ -129,18 +129,11 @@ function ProductFormModal({ initial, onSave, onClose, saving, token }) {
     } finally { setUploading(false); }
   };
 
-  // Validate that pasted URL is a direct image link, not a webpage
   const handleUrlChange = (e) => {
     const val = e.target.value;
     setForm(p => ({ ...p, imageUrl: val }));
-    // Only set as preview if it looks like a direct image URL
-    const isDirectImage = /\.(jpg|jpeg|png|webp|gif|svg)(\?.*)?$/i.test(val) || val.includes("cloudinary") || val.includes("imgur");
-    setPreview(isDirectImage ? val : "");
-    if (val && !isDirectImage) {
-      setUploadError("Tip: Paste a direct image URL ending in .jpg/.png, not a webpage link. Use 'Choose image from your laptop' instead.");
-    } else {
-      setUploadError("");
-    }
+    setPreview(val); // always try to show whatever URL is pasted
+    setUploadError("");
   };
 
   return (
@@ -160,10 +153,20 @@ function ProductFormModal({ initial, onSave, onClose, saving, token }) {
             background:"var(--bg3)", border:"1px dashed var(--border)",
             display:"flex", alignItems:"center", justifyContent:"center", position:"relative" }}>
             {preview ? (
-              <img src={preview} alt="preview"
-                style={{ width:"100%", height:"100%", objectFit:"cover" }}
-                onError={e => { e.target.style.display="none"; }}
-              />
+              <>
+                <img src={preview} alt="preview"
+                  style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}
+                  onError={e => {
+                    e.target.style.display = "none";
+                    e.target.nextSibling.style.display = "flex";
+                  }}
+                />
+                <div style={{ display:"none", flexDirection:"column", alignItems:"center", justifyContent:"center",
+                  width:"100%", height:"100%", position:"absolute", inset:0, color:"var(--text3)" }}>
+                  <div style={{ fontSize:"36px", marginBottom:"6px" }}>{CATEGORY_ICONS[form.category] || "📦"}</div>
+                  <div style={{ fontSize:"11px" }}>Could not load preview — image will still be saved</div>
+                </div>
+              </>
             ) : (
               <div style={{ textAlign:"center", color:"var(--text3)" }}>
                 <div style={{ fontSize:"36px", marginBottom:"6px" }}>{CATEGORY_ICONS[form.category] || "📦"}</div>
