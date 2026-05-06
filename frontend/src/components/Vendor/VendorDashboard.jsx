@@ -103,26 +103,44 @@ function ProductFormModal({ initial, onSave, onClose, saving, token }) {
   const labelStyle = { fontSize:"11px", fontWeight:700, color:"var(--text3)", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:"5px", display:"block" };
   const inputStyle = { width:"100%", background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:"8px", padding:"9px 12px", color:"var(--text)", fontSize:"13px", outline:"none", boxSizing:"border-box" };
 
+  const [uploadError, setUploadError] = useState("");
+
   const handleImageFile = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    // Show local preview immediately
+    setUploadError("");
+    // Show local blob preview immediately so vendor sees the image right away
     const localUrl = URL.createObjectURL(file);
     setPreview(localUrl);
-    // Upload to backend
     setUploading(true);
     try {
       const fd = new FormData();
       fd.append("file", file);
+      // Don't set Content-Type manually — browser sets it with correct boundary for multipart
       const res = await api.post("/uploads", fd, {
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" },
+        headers: { Authorization: `Bearer ${token}` },
       });
       const serverUrl = res.data.fileUrl;
       setForm(p => ({ ...p, imageUrl: serverUrl }));
-      setPreview(serverUrl);
-    } catch {
-      // Keep local preview, user will see image even if upload failed
+      setPreview(serverUrl); // switch to Cloudinary URL
+    } catch (err) {
+      setUploadError("Upload failed: " + (err?.response?.data?.message || err.message || "Unknown error"));
+      // Keep blob preview so vendor can still see what they selected
     } finally { setUploading(false); }
+  };
+
+  // Validate that pasted URL is a direct image link, not a webpage
+  const handleUrlChange = (e) => {
+    const val = e.target.value;
+    setForm(p => ({ ...p, imageUrl: val }));
+    // Only set as preview if it looks like a direct image URL
+    const isDirectImage = /\.(jpg|jpeg|png|webp|gif|svg)(\?.*)?$/i.test(val) || val.includes("cloudinary") || val.includes("imgur");
+    setPreview(isDirectImage ? val : "");
+    if (val && !isDirectImage) {
+      setUploadError("Tip: Paste a direct image URL ending in .jpg/.png, not a webpage link. Use 'Choose image from your laptop' instead.");
+    } else {
+      setUploadError("");
+    }
   };
 
   return (
@@ -141,9 +159,11 @@ function ProductFormModal({ initial, onSave, onClose, saving, token }) {
           <div style={{ marginBottom:"12px", borderRadius:"10px", overflow:"hidden", height:"180px",
             background:"var(--bg3)", border:"1px dashed var(--border)",
             display:"flex", alignItems:"center", justifyContent:"center", position:"relative" }}>
-            {preview || form.imageUrl ? (
-              <img src={preview || form.imageUrl} alt="preview"
-                style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+            {preview ? (
+              <img src={preview} alt="preview"
+                style={{ width:"100%", height:"100%", objectFit:"cover" }}
+                onError={e => { e.target.style.display="none"; }}
+              />
             ) : (
               <div style={{ textAlign:"center", color:"var(--text3)" }}>
                 <div style={{ fontSize:"36px", marginBottom:"6px" }}>{CATEGORY_ICONS[form.category] || "📦"}</div>
@@ -151,10 +171,10 @@ function ProductFormModal({ initial, onSave, onClose, saving, token }) {
               </div>
             )}
             {uploading && (
-              <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0.6)",
-                display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", color:"#fff", fontSize:"13px" }}>
-                <div className="spinner" style={{ borderTopColor:"#fff", width:"18px", height:"18px" }} />
-                Uploading…
+              <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0.7)",
+                display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", color:"#fff" }}>
+                <div className="spinner" style={{ borderTopColor:"#fff", width:"24px", height:"24px" }} />
+                <span style={{ fontSize:"13px", fontWeight:600 }}>Uploading to Cloudinary…</span>
               </div>
             )}
           </div>
@@ -180,9 +200,24 @@ function ProductFormModal({ initial, onSave, onClose, saving, token }) {
             <span style={{ fontSize:"11px", color:"var(--text3)" }}>OR paste a URL</span>
             <div style={{ flex:1, height:"1px", background:"var(--border)" }} />
           </div>
-          <input style={inputStyle} placeholder="https://example.com/image.jpg"
+          <input style={inputStyle} placeholder="https://res.cloudinary.com/... or https://i.imgur.com/..."
             value={form.imageUrl}
-            onChange={e => { setForm(p => ({ ...p, imageUrl: e.target.value })); setPreview(e.target.value); }} />
+            onChange={handleUrlChange} />
+          {uploadError && (
+            <div style={{ marginTop:"6px", fontSize:"12px", color:"var(--gold)", padding:"6px 10px", background:"rgba(245,158,11,0.1)", borderRadius:"6px" }}>
+              ⚠ {uploadError}
+            </div>
+          )}
+          {uploading && (
+            <div style={{ marginTop:"6px", fontSize:"12px", color:"var(--accent)", fontWeight:600 }}>
+              ⏳ Uploading to Cloudinary…
+            </div>
+          )}
+          {form.imageUrl && !uploading && !uploadError && (
+            <div style={{ marginTop:"6px", fontSize:"12px", color:"var(--green)" }}>
+              ✓ Image URL saved
+            </div>
+          )}
         </div>
 
         {/* Basic info */}
