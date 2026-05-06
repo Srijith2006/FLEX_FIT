@@ -119,20 +119,9 @@ function ProductCard({ product, onBuy, onRate, userRatings }) {
       onMouseEnter={e => { e.currentTarget.style.borderColor="var(--border2)"; e.currentTarget.style.transform="translateY(-3px)"; e.currentTarget.style.boxShadow="0 8px 32px rgba(0,0,0,0.4)"; }}
       onMouseLeave={e => { e.currentTarget.style.borderColor="var(--border)";  e.currentTarget.style.transform="none"; e.currentTarget.style.boxShadow="none"; }}
     >
-      {/* Visual — show product image if available, else category emoji */}
-      <div style={{ height:"160px", background:"linear-gradient(135deg,var(--bg3),var(--surface2))", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"48px", position:"relative", flexShrink:0, overflow:"hidden" }}>
-        {product.imageUrl ? (
-          <img
-            src={product.imageUrl}
-            alt={product.name}
-            referrerPolicy="no-referrer"
-            style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}
-            onError={e => { e.target.style.display="none"; e.target.nextSibling.style.display="flex"; }}
-          />
-        ) : null}
-        <div style={{ display: product.imageUrl ? "none" : "flex", width:"100%", height:"100%", alignItems:"center", justifyContent:"center", fontSize:"48px" }}>
-          {CAT_ICON[product.category]||"📦"}
-        </div>
+      {/* Visual */}
+      <div style={{ height:"100px", background:"linear-gradient(135deg,var(--bg3),var(--surface2))", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"48px", position:"relative", flexShrink:0 }}>
+        {CAT_ICON[product.category]||"📦"}
         {discount > 0 && <div style={{ position:"absolute", top:"8px", left:"8px", background:"var(--red)", color:"#fff", fontSize:"10px", fontWeight:700, padding:"2px 8px", borderRadius:"10px" }}>-{discount}%</div>}
         {groupReady && <div style={{ position:"absolute", top:"8px", right:"8px", background:"var(--green)", color:"#fff", fontSize:"10px", fontWeight:700, padding:"2px 8px", borderRadius:"10px" }}>🎉 GROUP DEAL</div>}
       </div>
@@ -260,11 +249,8 @@ function TrainerRecommendedSection({ token, onBuy }) {
             <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
               {group.items.map(rec => (
                 <div key={rec._id} style={{ display:"flex", gap:"14px", alignItems:"center", padding:"12px 14px", background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:"var(--radius)" }}>
-                  <div style={{ width:"52px", height:"52px", borderRadius:"12px", background:"linear-gradient(135deg,var(--bg2),var(--surface2))", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"22px", flexShrink:0, overflow:"hidden" }}>
-                    {rec.product?.imageUrl
-                      ? <img src={rec.product.imageUrl} alt={rec.product.name} referrerPolicy="no-referrer" style={{ width:"100%", height:"100%", objectFit:"cover" }} onError={e => { e.target.style.display="none"; e.target.nextSibling.style.display="block"; }} />
-                      : null}
-                    <span style={{ display: rec.product?.imageUrl ? "none" : "block" }}>{CAT_ICON[rec.product?.category]||"📦"}</span>
+                  <div style={{ width:"44px", height:"44px", borderRadius:"12px", background:"linear-gradient(135deg,var(--bg2),var(--surface2))", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"22px", flexShrink:0 }}>
+                    {CAT_ICON[rec.product?.category]||"📦"}
                   </div>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontWeight:700, fontSize:"14px" }}>{rec.product?.name}</div>
@@ -299,71 +285,10 @@ function TrainerRecommendedSection({ token, onBuy }) {
 }
 
 // ── My Orders with Complete Payment ──────────────────────────────────────────
-// ── Cancel Order Modal ────────────────────────────────────────────────────────
-function CancelModal({ order, onConfirm, onClose, cancelling }) {
-  const [reason, setReason] = useState("");
-  const [error, setError]   = useState("");
-
-  const QUICK_REASONS = [
-    "Changed my mind",
-    "Ordered by mistake",
-    "Found a better price elsewhere",
-    "Delivery taking too long",
-    "Other",
-  ];
-
-  const submit = () => {
-    if (!reason.trim()) { setError("Please provide a cancellation reason."); return; }
-    setError("");
-    onConfirm(reason.trim());
-  };
-
-  return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:400, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }}>
-      <div style={{ background:"var(--surface)", border:"1px solid var(--border2)", borderRadius:"20px", padding:"28px", maxWidth:"420px", width:"100%", boxShadow:"0 24px 64px rgba(0,0,0,0.6)" }}>
-        <h3 style={{ fontWeight:700, fontSize:"18px", marginBottom:"6px", color:"var(--red)" }}>Cancel Order</h3>
-        <div style={{ background:"var(--bg3)", borderRadius:"var(--radius)", padding:"10px 14px", marginBottom:"16px" }}>
-          <div style={{ fontWeight:700, fontSize:"13px" }}>{order.items?.map(i => `${i.name} x${i.quantity}`).join(", ")}</div>
-          <div style={{ fontSize:"12px", color:"var(--text3)", marginTop:"2px" }}>Rs.{order.total} · {order.vendor?.businessName}</div>
-        </div>
-        <div style={{ marginBottom:"14px" }}>
-          <div style={{ fontSize:"12px", fontWeight:700, color:"var(--text2)", marginBottom:"8px" }}>Quick reasons:</div>
-          <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
-            {QUICK_REASONS.map(r => (
-              <button key={r} onClick={() => setReason(r)}
-                style={{ fontSize:"12px", padding:"5px 12px", borderRadius:"20px", cursor:"pointer",
-                  background: reason === r ? "rgba(239,68,68,0.15)" : "var(--bg3)",
-                  border: reason === r ? "1px solid #ef4444" : "1px solid var(--border)",
-                  color: reason === r ? "#ef4444" : "var(--text2)", transition:"all 0.15s" }}>
-                {r}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="form-group" style={{ marginBottom:"16px" }}>
-          <label className="form-label">Or describe your reason *</label>
-          <textarea className="form-textarea" rows="3"
-            placeholder="Tell us why you're cancelling..."
-            value={reason} onChange={e => { setReason(e.target.value); setError(""); }} />
-        </div>
-        {error && <div className="alert alert-error" style={{ marginBottom:"12px" }}>{error}</div>}
-        <div style={{ display:"flex", gap:"10px" }}>
-          <button className="btn btn-danger" style={{ flex:1 }} onClick={submit} disabled={cancelling}>
-            {cancelling ? "Cancelling..." : "Confirm Cancellation"}
-          </button>
-          <button className="btn btn-outline" onClick={onClose} disabled={cancelling}>Keep Order</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function MyOrders({ token, user }) {
-  const [orders, setOrders]         = useState([]);
-  const [loading, setLoading]       = useState(true);
-  const [retrying, setRetrying]     = useState(null);
-  const [cancelling, setCancelling] = useState(null);
-  const [cancelModal, setCancelModal] = useState(null);
+  const [orders, setOrders]   = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [retrying, setRetrying] = useState(null);
   const [msg, setMsg] = useState({ type:"", text:"" });
 
   const load = () => {
@@ -380,14 +305,20 @@ function MyOrders({ token, user }) {
     try {
       const loaded = await loadRazorpay();
       if (!loaded) { setMsg({ type:"error", text:"Payment gateway failed to load." }); setRetrying(null); return; }
-      const { data } = await api.post(`/orders/${order._id}/retry`, {}, { headers:{ Authorization:`Bearer ${token}` } });
+
+      const { data } = await api.post(`/orders/${order._id}/retry`, {}, {
+        headers: { Authorization:`Bearer ${token}` },
+      });
+
       const options = {
-        key: data.keyId, amount: data.amount, currency: data.currency || "INR",
-        name: "FlexFit Marketplace",
+        key:         data.keyId,
+        amount:      data.amount,
+        currency:    data.currency || "INR",
+        name:        "FlexFit Marketplace",
         description: `Retry: ${order.items?.map(i=>i.name).join(", ")}`,
-        order_id: data.orderId,
-        prefill: { name: user?.name||"", email: user?.email||"" },
-        theme: { color:"#0070f3" },
+        order_id:    data.orderId,
+        prefill:     { name: user?.name||"", email: user?.email||"" },
+        theme:       { color:"#0070f3" },
         handler: async (response) => {
           try {
             await api.post("/orders/verify", {
@@ -396,8 +327,8 @@ function MyOrders({ token, user }) {
               razorpay_signature:  response.razorpay_signature,
               orderDbId:           data.orderDbId,
             }, { headers:{ Authorization:`Bearer ${token}` } });
-            setMsg({ type:"success", text:`Payment complete! ID: ${response.razorpay_payment_id}` });
-            load();
+            setMsg({ type:"success", text:`✅ Payment complete! ID: ${response.razorpay_payment_id}` });
+            load(); // Refresh orders
           } catch {
             setMsg({ type:"error", text:"Payment done but verification failed. Contact support." });
           }
@@ -413,22 +344,8 @@ function MyOrders({ token, user }) {
     }
   };
 
-  const confirmCancel = async (reason) => {
-    if (!cancelModal) return;
-    setCancelling(cancelModal._id);
-    try {
-      await api.post(`/orders/${cancelModal._id}/cancel`, { reason }, { headers:{ Authorization:`Bearer ${token}` } });
-      setMsg({ type:"success", text:"Order cancelled successfully." });
-      setCancelModal(null);
-      load();
-    } catch (e) {
-      setMsg({ type:"error", text: e?.response?.data?.message || "Could not cancel order." });
-    } finally { setCancelling(null); }
-  };
-
   const STATUS_COLORS = { pending:"var(--gold)", confirmed:"var(--accent2)", preparing:"var(--accent)", shipped:"var(--accent3)", delivered:"var(--green)", cancelled:"var(--red)" };
-  const STATUS_ICONS  = { pending:"⏳", confirmed:"✅", preparing:"🍳", shipped:"🚚", delivered:"📦", cancelled:"✕" };
-  const cancellable   = (s) => ["pending","confirmed","preparing"].includes(s);
+  const STATUS_ICONS  = { pending:"⏳", confirmed:"✅", preparing:"👨‍🍳", shipped:"🚚", delivered:"📦", cancelled:"✕" };
 
   if (loading) return <div className="loading-screen" style={{minHeight:"120px"}}><div className="spinner"></div></div>;
 
@@ -440,6 +357,7 @@ function MyOrders({ token, user }) {
           <button onClick={()=>setMsg({type:"",text:""})} style={{background:"none",border:"none",marginLeft:"auto",cursor:"pointer",color:"inherit"}}>✕</button>
         </div>
       )}
+
       {orders.length === 0 ? (
         <div className="empty-state" style={{padding:"32px"}}>
           <div className="empty-state-icon">📦</div>
@@ -448,9 +366,10 @@ function MyOrders({ token, user }) {
       ) : orders.map(o => (
         <div key={o._id} style={{
           background:"var(--bg3)", borderRadius:"var(--radius)",
-          border:`1px solid ${o.status==="pending"?"rgba(245,158,11,0.4)":o.status==="cancelled"?"rgba(239,68,68,0.3)":o.status==="delivered"?"rgba(16,185,129,0.3)":"var(--border)"}`,
+          border:`1px solid ${o.status==="pending"?"rgba(245,158,11,0.4)":o.status==="delivered"?"rgba(16,185,129,0.3)":"var(--border)"}`,
           padding:"16px", overflow:"hidden",
         }}>
+          {/* Order header */}
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"12px", marginBottom:"10px" }}>
             <div style={{ flex:1 }}>
               <div style={{ display:"flex", gap:"8px", alignItems:"center", marginBottom:"5px", flexWrap:"wrap" }}>
@@ -463,21 +382,24 @@ function MyOrders({ token, user }) {
                 </span>
               </div>
               <div style={{ fontWeight:600, fontSize:"14px", marginBottom:"4px" }}>
-                {o.items?.map(i => `${i.name} x${i.quantity}`).join(", ")}
+                {o.items?.map(i => `${i.name} ×${i.quantity}`).join(", ")}
               </div>
-              {o.vendor?.businessName && <div style={{ fontSize:"12px", color:"var(--text3)" }}>📦 {o.vendor.businessName}</div>}
+              {o.vendor?.businessName && (
+                <div style={{ fontSize:"12px", color:"var(--text3)" }}>📦 {o.vendor.businessName}</div>
+              )}
               {o.deliveryAddress && (
                 <div style={{ fontSize:"11px", color:"var(--text3)", marginTop:"3px" }}>
-                  📍 {o.deliveryAddress.length > 60 ? o.deliveryAddress.slice(0,60)+"..." : o.deliveryAddress}
+                  📍 {o.deliveryAddress.length > 60 ? o.deliveryAddress.slice(0,60)+"…" : o.deliveryAddress}
                 </div>
               )}
             </div>
             <div style={{ textAlign:"right", flexShrink:0 }}>
-              <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:"26px", color:"var(--accent)", lineHeight:1 }}>Rs.{o.total}</div>
-              {o.discount > 0 && <div style={{ fontSize:"11px", color:"var(--green)" }}>-Rs.{o.discount} saved</div>}
+              <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:"26px", color:"var(--accent)", lineHeight:1 }}>₹{o.total}</div>
+              {o.discount > 0 && <div style={{ fontSize:"11px", color:"var(--green)" }}>-₹{o.discount} saved</div>}
             </div>
           </div>
 
+          {/* Status progress */}
           {o.status !== "cancelled" && (
             <div style={{ display:"flex", gap:"3px", marginBottom:"10px" }}>
               {["pending","confirmed","preparing","shipped","delivered"].map((s,i) => {
@@ -486,20 +408,14 @@ function MyOrders({ token, user }) {
                 return (
                   <div key={s} style={{ flex:1 }}>
                     <div style={{ height:"4px", borderRadius:"2px", background:done?STATUS_COLORS[o.status]:"var(--border)", transition:"background 0.3s" }}/>
-                    <div style={{ fontSize:"8px", color:done?STATUS_COLORS[o.status]:"var(--text3)", textAlign:"center", marginTop:"3px", textTransform:"uppercase" }}>{s}</div>
+                    <div style={{ fontSize:"8px", color: done?STATUS_COLORS[o.status]:"var(--text3)", textAlign:"center", marginTop:"3px", textTransform:"uppercase" }}>{s}</div>
                   </div>
                 );
               })}
             </div>
           )}
 
-          {o.status === "cancelled" && (
-            <div style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.2)", borderRadius:"8px", padding:"10px 14px", marginBottom:"8px" }}>
-              <div style={{ fontSize:"12px", fontWeight:700, color:"var(--red)" }}>Order Cancelled</div>
-              {o.cancellationReason && <div style={{ fontSize:"12px", color:"var(--text2)", marginTop:"3px" }}>Reason: {o.cancellationReason}</div>}
-            </div>
-          )}
-
+          {/* COMPLETE PAYMENT button for pending unpaid orders */}
           {o.status === "pending" && !o.isPaid && (
             <div style={{ background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.2)", borderRadius:"var(--radius)", padding:"12px 14px" }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"12px", flexWrap:"wrap" }}>
@@ -507,26 +423,17 @@ function MyOrders({ token, user }) {
                   <div style={{ fontWeight:700, fontSize:"13px", color:"var(--gold)" }}>⚠️ Payment Incomplete</div>
                   <div style={{ fontSize:"12px", color:"var(--text2)", marginTop:"2px" }}>Your order is reserved. Complete payment to confirm it.</div>
                 </div>
-                <div style={{ display:"flex", gap:"8px", flexShrink:0 }}>
-                  <button className="btn btn-sm btn-outline" style={{ color:"var(--red)", borderColor:"var(--red)" }}
-                    onClick={() => setCancelModal(o)} disabled={!!cancelling}>
-                    ✕ Cancel
-                  </button>
-                  <button className="btn btn-sm" style={{ background:"var(--gold)", color:"#000", fontWeight:700 }}
-                    onClick={() => retryPayment(o)} disabled={retrying === o._id}>
-                    {retrying === o._id ? "Opening..." : "💳 Complete Payment"}
-                  </button>
-                </div>
+                <button
+                  className="btn btn-sm"
+                  style={{ background:"var(--gold)", color:"#000", fontWeight:700, flexShrink:0 }}
+                  onClick={() => retryPayment(o)}
+                  disabled={retrying === o._id}
+                >
+                  {retrying === o._id
+                    ? <><span className="spinner" style={{borderTopColor:"#000",width:"12px",height:"12px"}}></span> Opening…</>
+                    : "💳 Complete Payment"}
+                </button>
               </div>
-            </div>
-          )}
-
-          {cancellable(o.status) && o.isPaid && (
-            <div style={{ display:"flex", justifyContent:"flex-end", marginTop:"8px" }}>
-              <button className="btn btn-sm btn-outline" style={{ color:"var(--red)", borderColor:"var(--red)", fontSize:"12px" }}
-                onClick={() => setCancelModal(o)} disabled={!!cancelling}>
-                ✕ Cancel Order
-              </button>
             </div>
           )}
 
@@ -537,15 +444,6 @@ function MyOrders({ token, user }) {
           )}
         </div>
       ))}
-
-      {cancelModal && (
-        <CancelModal
-          order={cancelModal}
-          onConfirm={confirmCancel}
-          onClose={() => setCancelModal(null)}
-          cancelling={!!cancelling}
-        />
-      )}
     </div>
   );
 }
