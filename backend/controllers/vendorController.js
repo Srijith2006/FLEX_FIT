@@ -1,6 +1,6 @@
 import { Vendor, Product, User } from "../models/index.js";
 
-// ── Vendor Registration ────────────────────────────────────────────────────────
+// ── Vendor Profile Setup (called from dashboard after registration) ─────────────
 export const registerVendor = async (req, res, next) => {
   try {
     const existing = await Vendor.findOne({ user: req.user._id });
@@ -9,7 +9,6 @@ export const registerVendor = async (req, res, next) => {
     const { businessName, businessType, description, phone, address, city, gstNumber } = req.body;
     if (!businessName) return res.status(400).json({ message: "businessName is required" });
 
-    // 1. Create the Vendor profile document
     const vendor = await Vendor.create({
       user: req.user._id,
       businessName,
@@ -21,10 +20,6 @@ export const registerVendor = async (req, res, next) => {
       gstNumber,
     });
 
-    // 2. RECTIFICATION: Update the User's role in the database to 'vendor'[cite: 3]
-    // This allows the authorize("vendor") middleware to pass for future requests[cite: 4]
-    await User.findByIdAndUpdate(req.user._id, { role: "vendor" });
-
     res.status(201).json({ vendor });
   } catch (error) { next(error); }
 };
@@ -32,25 +27,22 @@ export const registerVendor = async (req, res, next) => {
 export const getMyVendorProfile = async (req, res, next) => {
   try {
     const vendor = await Vendor.findOne({ user: req.user._id }).populate("user", "name email");
-    if (!vendor) return res.status(404).json({ message: "Vendor profile not found" });
-    res.json({ vendor });
+    // Return null vendor if not yet set up — frontend shows setup form
+    res.json({ vendor: vendor || null });
   } catch (error) { next(error); }
 };
 
-// backend/controllers/vendorController.js
 export const updateVendorProfile = async (req, res, next) => {
   try {
     const vendor = await Vendor.findOne({ user: req.user._id });
-    if (!vendor) return res.status(404).json({ message: "Vendor profile not found" });
+    if (!vendor) return res.status(404).json({ message: "Vendor profile not found. Complete setup first." });
 
-    // Handle standard text fields
     const fields = ["businessName", "businessType", "description", "phone", "address", "city", "gstNumber"];
     fields.forEach(f => { if (req.body[f] !== undefined) vendor[f] = req.body[f]; });
 
-    // Handle file upload if present
+    // Handle certificate file upload (multer local storage)
     if (req.file) {
-      // If using Cloudinary or local storage, save the path/URL
-      vendor.certificateUrl = req.file.path || req.file.location;
+      vendor.certificateUrl = `/uploads/${req.file.filename}`;
     }
 
     await vendor.save();
@@ -58,15 +50,29 @@ export const updateVendorProfile = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+// ── Certificate Upload (separate endpoint) ─────────────────────────────────────
+export const uploadCertificate = async (req, res, next) => {
+  try {
+    const vendor = await Vendor.findOne({ user: req.user._id });
+    if (!vendor) return res.status(404).json({ message: "Complete vendor profile setup first" });
+    if (!req.file) return res.status(400).json({ message: "Certificate file is required" });
+
+    vendor.certificateUrl = `/uploads/${req.file.filename}`;
+    vendor.verificationStatus = "pending"; // reset to pending on new upload
+    await vendor.save();
+
+    res.json({ message: "Certificate uploaded successfully", certificateUrl: vendor.certificateUrl });
+  } catch (error) { next(error); }
+};
+
 // ── Vendor Products ────────────────────────────────────────────────────────────
 export const createProduct = async (req, res, next) => {
   try {
     const vendor = await Vendor.findOne({ user: req.user._id });
-    if (!vendor) return res.status(404).json({ message: "Vendor not found" });
+    if (!vendor) return res.status(404).json({ message: "Complete vendor profile setup first" });
 
-    // Note: Products can only be listed once admin approves the vendor[cite: 2]
     if (vendor.verificationStatus !== "approved")
-      return res.status(403).json({ message: "Only verified vendors can list products" });
+      return res.status(403).json({ message: "Only verified vendors can list products. Await admin approval." });
 
     const { name, description, category, price, unit, stock, calories, protein, carbs, fat,
       groupBuyEnabled, groupBuyThreshold, groupBuyDiscount } = req.body;
@@ -118,7 +124,10 @@ export const deleteProduct = async (req, res, next) => {
 // ── Admin ──────────────────────────────────────────────────────────────────────
 export const listAllVendors = async (req, res, next) => {
   try {
-    const vendors = await Vendor.find({}).populate("user", "name email").sort({ createdAt: -1 });
+    // Populate user details and include certificateUrl for admin review
+    const vendors = await Vendor.find({})
+      .populate("user", "name email createdAt")
+      .sort({ createdAt: -1 });
     res.json({ vendors });
   } catch (error) { next(error); }
 };
