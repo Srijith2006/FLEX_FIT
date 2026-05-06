@@ -119,9 +119,20 @@ function ProductCard({ product, onBuy, onRate, userRatings }) {
       onMouseEnter={e => { e.currentTarget.style.borderColor="var(--border2)"; e.currentTarget.style.transform="translateY(-3px)"; e.currentTarget.style.boxShadow="0 8px 32px rgba(0,0,0,0.4)"; }}
       onMouseLeave={e => { e.currentTarget.style.borderColor="var(--border)";  e.currentTarget.style.transform="none"; e.currentTarget.style.boxShadow="none"; }}
     >
-      {/* Visual */}
-      <div style={{ height:"100px", background:"linear-gradient(135deg,var(--bg3),var(--surface2))", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"48px", position:"relative", flexShrink:0 }}>
-        {CAT_ICON[product.category]||"📦"}
+      {/* Visual — show product image if available, else category emoji */}
+      <div style={{ height:"160px", background:"linear-gradient(135deg,var(--bg3),var(--surface2))", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"48px", position:"relative", flexShrink:0, overflow:"hidden" }}>
+        {product.imageUrl ? (
+          <img
+            src={product.imageUrl}
+            alt={product.name}
+            referrerPolicy="no-referrer"
+            style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}
+            onError={e => { e.target.style.display="none"; e.target.nextSibling.style.display="flex"; }}
+          />
+        ) : null}
+        <div style={{ display: product.imageUrl ? "none" : "flex", width:"100%", height:"100%", alignItems:"center", justifyContent:"center", fontSize:"48px" }}>
+          {CAT_ICON[product.category]||"📦"}
+        </div>
         {discount > 0 && <div style={{ position:"absolute", top:"8px", left:"8px", background:"var(--red)", color:"#fff", fontSize:"10px", fontWeight:700, padding:"2px 8px", borderRadius:"10px" }}>-{discount}%</div>}
         {groupReady && <div style={{ position:"absolute", top:"8px", right:"8px", background:"var(--green)", color:"#fff", fontSize:"10px", fontWeight:700, padding:"2px 8px", borderRadius:"10px" }}>🎉 GROUP DEAL</div>}
       </div>
@@ -249,8 +260,11 @@ function TrainerRecommendedSection({ token, onBuy }) {
             <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
               {group.items.map(rec => (
                 <div key={rec._id} style={{ display:"flex", gap:"14px", alignItems:"center", padding:"12px 14px", background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:"var(--radius)" }}>
-                  <div style={{ width:"44px", height:"44px", borderRadius:"12px", background:"linear-gradient(135deg,var(--bg2),var(--surface2))", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"22px", flexShrink:0 }}>
-                    {CAT_ICON[rec.product?.category]||"📦"}
+                  <div style={{ width:"52px", height:"52px", borderRadius:"12px", background:"linear-gradient(135deg,var(--bg2),var(--surface2))", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"22px", flexShrink:0, overflow:"hidden" }}>
+                    {rec.product?.imageUrl
+                      ? <img src={rec.product.imageUrl} alt={rec.product.name} referrerPolicy="no-referrer" style={{ width:"100%", height:"100%", objectFit:"cover" }} onError={e => { e.target.style.display="none"; e.target.nextSibling.style.display="block"; }} />
+                      : null}
+                    <span style={{ display: rec.product?.imageUrl ? "none" : "block" }}>{CAT_ICON[rec.product?.category]||"📦"}</span>
                   </div>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontWeight:700, fontSize:"14px" }}>{rec.product?.name}</div>

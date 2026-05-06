@@ -26,11 +26,7 @@ export default function Register() {
     try {
       await register(form);
       // Logic for redirecting based on role
-      if (form.role === "vendor") {
-        nav("/vendor/dashboard");
-      } else {
-        nav("/dashboard");
-      }
+      nav("/dashboard");
     } catch (err) {
       setError(err?.response?.data?.message || "Registration failed.");
     } finally {
