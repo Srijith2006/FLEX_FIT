@@ -93,46 +93,226 @@ function OrderCard({ order, onStatusUpdate }) {
   );
 }
 
+// ── Overview Tab ───────────────────────────────────────────────────────────────
+function OverviewTab({ vendor, orders, products, onTabChange }) {
+  const delivered   = orders.filter(o => o.status === "delivered");
+  const pending     = orders.filter(o => ["pending","confirmed","preparing","shipped"].includes(o.status));
+  const cancelled   = orders.filter(o => o.status === "cancelled");
+  const totalRevenue = vendor.totalRevenue || 0;
+  const topProducts = [...products].sort((a,b) => (b.totalSold||0) - (a.totalSold||0)).slice(0,3);
+  const recentOrders = [...orders].sort((a,b) => new Date(b.createdAt)-new Date(a.createdAt)).slice(0,3);
+  const lowStock    = products.filter(p => p.stock <= 10 && p.stock > 0);
+  const outOfStock  = products.filter(p => p.stock === 0);
+
+  // Revenue breakdown by category
+  const categoryRevenue = {};
+  delivered.forEach(o => {
+    o.items?.forEach(item => {
+      const product = products.find(p => p._id === (item.product?._id || item.product));
+      const cat = product?.category || "other";
+      categoryRevenue[cat] = (categoryRevenue[cat] || 0) + item.totalPrice;
+    });
+  });
+
+  const avgOrderValue = delivered.length > 0
+    ? Math.round(delivered.reduce((s,o) => s + o.total, 0) / delivered.length) : 0;
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:"16px" }}>
+
+      {/* ── Performance KPIs ── */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:"12px" }}>
+        {[
+          { icon:"💰", label:"Total Revenue",    value:`₹${totalRevenue.toLocaleString()}`, color:"var(--gold)" },
+          { icon:"📦", label:"Active Orders",     value:pending.length,    color:"var(--accent)" },
+          { icon:"✅", label:"Delivered Orders",  value:delivered.length,  color:"var(--green)" },
+          { icon:"📊", label:"Avg Order Value",   value:`₹${avgOrderValue}`, color:"var(--accent2)" },
+        ].map(k => (
+          <div key={k.label} className="stat-card">
+            <div style={{ fontSize:"22px", marginBottom:"6px" }}>{k.icon}</div>
+            <div className="stat-card-value" style={{ color:k.color, fontSize:"22px" }}>{k.value}</div>
+            <div className="stat-card-label">{k.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"16px" }}>
+
+        {/* ── Recent Orders ── */}
+        <div className="card">
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"14px" }}>
+            <div style={{ fontWeight:700, fontSize:"16px" }}>🕐 Recent Orders</div>
+            <button className="btn btn-outline btn-sm" onClick={() => onTabChange("orders")}>View All →</button>
+          </div>
+          {recentOrders.length === 0 ? (
+            <div style={{ color:"var(--text3)", fontSize:"13px", textAlign:"center", padding:"20px 0" }}>No orders yet</div>
+          ) : recentOrders.map(o => (
+            <div key={o._id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
+              padding:"10px 0", borderBottom:"1px solid var(--border)" }}>
+              <div>
+                <div style={{ fontSize:"13px", fontWeight:600 }}>
+                  {o.items?.map(i => i.name).join(", ").slice(0,30)}…
+                </div>
+                <div style={{ fontSize:"11px", color:"var(--text3)", marginTop:"2px" }}>
+                  {o.client?.user?.name} · {new Date(o.createdAt).toLocaleDateString("en-IN")}
+                </div>
+              </div>
+              <div style={{ textAlign:"right" }}>
+                <div style={{ fontWeight:700, color:"var(--green)", fontSize:"14px" }}>₹{o.total}</div>
+                <span style={{ fontSize:"10px", fontWeight:700, textTransform:"uppercase",
+                  color: STATUS_COLORS[o.status] }}>● {o.status}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Top Products ── */}
+        <div className="card">
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"14px" }}>
+            <div style={{ fontWeight:700, fontSize:"16px" }}>🏆 Top Products</div>
+            <button className="btn btn-outline btn-sm" onClick={() => onTabChange("products")}>Manage →</button>
+          </div>
+          {topProducts.length === 0 ? (
+            <div style={{ color:"var(--text3)", fontSize:"13px", textAlign:"center", padding:"20px 0" }}>No products listed yet</div>
+          ) : topProducts.map((p, i) => (
+            <div key={p._id} style={{ display:"flex", alignItems:"center", gap:"12px",
+              padding:"10px 0", borderBottom:"1px solid var(--border)" }}>
+              <div style={{ width:"36px", height:"36px", borderRadius:"8px", overflow:"hidden", flexShrink:0,
+                background:"var(--bg3)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"16px" }}>
+                {p.imageUrl
+                  ? <img src={p.imageUrl} alt={p.name} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                  : CATEGORY_ICONS[p.category]||"📦"}
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:"13px", fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</div>
+                <div style={{ fontSize:"11px", color:"var(--text3)" }}>₹{p.price} · {p.totalSold||0} sold</div>
+              </div>
+              <div style={{ fontSize:"18px", fontWeight:700, color:"var(--gold)" }}>#{i+1}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"16px" }}>
+
+        {/* ── Inventory Alerts ── */}
+        <div className="card">
+          <div style={{ fontWeight:700, fontSize:"16px", marginBottom:"14px" }}>⚠️ Inventory Alerts</div>
+          {outOfStock.length === 0 && lowStock.length === 0 ? (
+            <div style={{ display:"flex", alignItems:"center", gap:"10px", padding:"12px",
+              background:"rgba(16,185,129,0.08)", borderRadius:"8px", border:"1px solid rgba(16,185,129,0.2)" }}>
+              <span style={{ fontSize:"20px" }}>✅</span>
+              <span style={{ fontSize:"13px", color:"var(--green)" }}>All products are well stocked!</span>
+            </div>
+          ) : (
+            <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+              {outOfStock.map(p => (
+                <div key={p._id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
+                  padding:"8px 12px", background:"rgba(239,68,68,0.08)", borderRadius:"8px",
+                  border:"1px solid rgba(239,68,68,0.2)" }}>
+                  <span style={{ fontSize:"13px", fontWeight:600 }}>{p.name}</span>
+                  <span style={{ fontSize:"11px", fontWeight:700, color:"var(--red)" }}>OUT OF STOCK</span>
+                </div>
+              ))}
+              {lowStock.map(p => (
+                <div key={p._id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
+                  padding:"8px 12px", background:"rgba(245,158,11,0.08)", borderRadius:"8px",
+                  border:"1px solid rgba(245,158,11,0.2)" }}>
+                  <span style={{ fontSize:"13px", fontWeight:600 }}>{p.name}</span>
+                  <span style={{ fontSize:"11px", fontWeight:700, color:"var(--gold)" }}>Only {p.stock} left</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── Order Status Breakdown ── */}
+        <div className="card">
+          <div style={{ fontWeight:700, fontSize:"16px", marginBottom:"14px" }}>📈 Order Breakdown</div>
+          {orders.length === 0 ? (
+            <div style={{ color:"var(--text3)", fontSize:"13px", textAlign:"center", padding:"20px 0" }}>No orders yet</div>
+          ) : (
+            <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
+              {[
+                { label:"Delivered", count:delivered.length,  color:"var(--green)",   pct: Math.round(delivered.length/orders.length*100) },
+                { label:"Active",    count:pending.length,    color:"var(--accent)",  pct: Math.round(pending.length/orders.length*100) },
+                { label:"Cancelled", count:cancelled.length,  color:"var(--red)",     pct: Math.round(cancelled.length/orders.length*100) },
+              ].map(row => (
+                <div key={row.label}>
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:"12px", marginBottom:"4px" }}>
+                    <span style={{ color:"var(--text2)", fontWeight:600 }}>{row.label}</span>
+                    <span style={{ color:row.color, fontWeight:700 }}>{row.count} ({row.pct}%)</span>
+                  </div>
+                  <div style={{ height:"6px", background:"var(--border)", borderRadius:"3px" }}>
+                    <div style={{ height:"100%", width:`${row.pct}%`, background:row.color,
+                      borderRadius:"3px", transition:"width 0.5s" }} />
+                  </div>
+                </div>
+              ))}
+              <div style={{ marginTop:"4px", paddingTop:"10px", borderTop:"1px solid var(--border)",
+                display:"flex", justifyContent:"space-between", fontSize:"12px" }}>
+                <span style={{ color:"var(--text3)" }}>Total Orders</span>
+                <span style={{ fontWeight:700 }}>{orders.length}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Quick Actions ── */}
+      <div className="card">
+        <div style={{ fontWeight:700, fontSize:"16px", marginBottom:"14px" }}>⚡ Quick Actions</div>
+        <div style={{ display:"flex", gap:"10px", flexWrap:"wrap" }}>
+          <button className="btn btn-accent btn-sm" onClick={() => onTabChange("products")}>
+            + Add New Product
+          </button>
+          <button className="btn btn-outline btn-sm" onClick={() => onTabChange("orders")}>
+            📦 View All Orders
+          </button>
+          <button className="btn btn-outline btn-sm" onClick={() => onTabChange("products")}>
+            🛒 Manage Products
+          </button>
+        </div>
+      </div>
+
+    </div>
+  );
+}
+
 // ── Product Form Modal ─────────────────────────────────────────────────────────
 function ProductFormModal({ initial, onSave, onClose, saving, token }) {
   const [form, setForm] = useState(initial || EMPTY_PRODUCT);
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState(initial?.imageUrl || "");
+  const [uploadError, setUploadError] = useState("");
   const h = (f) => (e) => setForm(p => ({ ...p, [f]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
 
   const labelStyle = { fontSize:"11px", fontWeight:700, color:"var(--text3)", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:"5px", display:"block" };
   const inputStyle = { width:"100%", background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:"8px", padding:"9px 12px", color:"var(--text)", fontSize:"13px", outline:"none", boxSizing:"border-box" };
 
-  const [uploadError, setUploadError] = useState("");
-
   const handleImageFile = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     setUploadError("");
-    // Show local blob preview immediately so vendor sees the image right away
     const localUrl = URL.createObjectURL(file);
     setPreview(localUrl);
     setUploading(true);
     try {
       const fd = new FormData();
       fd.append("file", file);
-      // Don't set Content-Type manually — browser sets it with correct boundary for multipart
-      const res = await api.post("/uploads", fd, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.post("/uploads", fd, { headers: { Authorization: `Bearer ${token}` } });
       const serverUrl = res.data.fileUrl;
       setForm(p => ({ ...p, imageUrl: serverUrl }));
-      setPreview(serverUrl); // switch to Cloudinary URL
+      setPreview(serverUrl);
     } catch (err) {
       setUploadError("Upload failed: " + (err?.response?.data?.message || err.message || "Unknown error"));
-      // Keep blob preview so vendor can still see what they selected
     } finally { setUploading(false); }
   };
 
   const handleUrlChange = (e) => {
     const val = e.target.value;
     setForm(p => ({ ...p, imageUrl: val }));
-    setPreview(val); // always try to show whatever URL is pasted
+    setPreview(val);
     setUploadError("");
   };
 
@@ -144,23 +324,16 @@ function ProductFormModal({ initial, onSave, onClose, saving, token }) {
           <button onClick={onClose} style={{ background:"none", border:"none", fontSize:"20px", cursor:"pointer", color:"var(--text3)" }}>✕</button>
         </div>
 
-        {/* Image upload + preview */}
+        {/* Image */}
         <div style={{ marginBottom:"20px" }}>
           <label style={labelStyle}>Product Image</label>
-
-          {/* Preview box */}
           <div style={{ marginBottom:"12px", borderRadius:"10px", overflow:"hidden", height:"180px",
             background:"var(--bg3)", border:"1px dashed var(--border)",
             display:"flex", alignItems:"center", justifyContent:"center", position:"relative" }}>
             {preview ? (
               <>
-                <img src={preview} alt="preview"
-                  style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}
-                  onError={e => {
-                    e.target.style.display = "none";
-                    e.target.nextSibling.style.display = "flex";
-                  }}
-                />
+                <img src={preview} alt="preview" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}
+                  onError={e => { e.target.style.display="none"; e.target.nextSibling.style.display="flex"; }} />
                 <div style={{ display:"none", flexDirection:"column", alignItems:"center", justifyContent:"center",
                   width:"100%", height:"100%", position:"absolute", inset:0, color:"var(--text3)" }}>
                   <div style={{ fontSize:"36px", marginBottom:"6px" }}>{CATEGORY_ICONS[form.category] || "📦"}</div>
@@ -181,46 +354,25 @@ function ProductFormModal({ initial, onSave, onClose, saving, token }) {
               </div>
             )}
           </div>
-
-          {/* Upload from laptop */}
-          <div style={{ display:"flex", gap:"10px", alignItems:"center", flexWrap:"wrap" }}>
-            <label style={{ cursor:"pointer", flex:1 }}>
-              <div style={{ ...inputStyle, display:"flex", alignItems:"center", gap:"8px",
-                cursor:"pointer", background:"var(--bg3)", border:"1px dashed var(--border)" }}>
-                <span style={{ fontSize:"18px" }}>🖼</span>
-                <span style={{ color:"var(--text2)", fontSize:"13px" }}>
-                  {uploading ? "Uploading..." : "Choose image from your laptop"}
-                </span>
-              </div>
-              <input type="file" accept="image/*" onChange={handleImageFile}
-                disabled={uploading} style={{ display:"none" }} />
-            </label>
-          </div>
-
-          {/* OR paste URL */}
+          <label style={{ cursor:"pointer", display:"block" }}>
+            <div style={{ ...inputStyle, display:"flex", alignItems:"center", gap:"8px",
+              cursor:"pointer", background:"var(--bg3)", border:"1px dashed var(--border)" }}>
+              <span style={{ fontSize:"18px" }}>🖼</span>
+              <span style={{ color:"var(--text2)", fontSize:"13px" }}>
+                {uploading ? "Uploading..." : "Choose image from your laptop"}
+              </span>
+            </div>
+            <input type="file" accept="image/*" onChange={handleImageFile} disabled={uploading} style={{ display:"none" }} />
+          </label>
           <div style={{ display:"flex", alignItems:"center", gap:"8px", margin:"10px 0" }}>
             <div style={{ flex:1, height:"1px", background:"var(--border)" }} />
             <span style={{ fontSize:"11px", color:"var(--text3)" }}>OR paste a URL</span>
             <div style={{ flex:1, height:"1px", background:"var(--border)" }} />
           </div>
           <input style={inputStyle} placeholder="https://res.cloudinary.com/... or https://i.imgur.com/..."
-            value={form.imageUrl}
-            onChange={handleUrlChange} />
-          {uploadError && (
-            <div style={{ marginTop:"6px", fontSize:"12px", color:"var(--gold)", padding:"6px 10px", background:"rgba(245,158,11,0.1)", borderRadius:"6px" }}>
-              ⚠ {uploadError}
-            </div>
-          )}
-          {uploading && (
-            <div style={{ marginTop:"6px", fontSize:"12px", color:"var(--accent)", fontWeight:600 }}>
-              ⏳ Uploading to Cloudinary…
-            </div>
-          )}
-          {form.imageUrl && !uploading && !uploadError && (
-            <div style={{ marginTop:"6px", fontSize:"12px", color:"var(--green)" }}>
-              ✓ Image URL saved
-            </div>
-          )}
+            value={form.imageUrl} onChange={handleUrlChange} />
+          {uploadError && <div style={{ marginTop:"6px", fontSize:"12px", color:"var(--gold)", padding:"6px 10px", background:"rgba(245,158,11,0.1)", borderRadius:"6px" }}>⚠ {uploadError}</div>}
+          {form.imageUrl && !uploading && !uploadError && <div style={{ marginTop:"6px", fontSize:"12px", color:"var(--green)" }}>✓ Image URL saved</div>}
         </div>
 
         {/* Basic info */}
@@ -251,44 +403,25 @@ function ProductFormModal({ initial, onSave, onClose, saving, token }) {
             </select>
           </div>
         </div>
-
         <div style={{ marginBottom:"14px" }}>
           <label style={labelStyle}>Description</label>
           <textarea style={{ ...inputStyle, resize:"vertical" }} rows={3}
             placeholder="What's in this product? Benefits, ingredients, etc."
             value={form.description} onChange={h("description")} />
         </div>
-
-        {/* Pricing & stock */}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"14px", marginBottom:"14px" }}>
-          <div>
-            <label style={labelStyle}>Price (₹) *</label>
-            <input style={inputStyle} type="number" min="0" placeholder="999" value={form.price} onChange={h("price")} />
-          </div>
-          <div>
-            <label style={labelStyle}>Original Price (₹)</label>
-            <input style={inputStyle} type="number" min="0" placeholder="1299 (for discount)" value={form.originalPrice} onChange={h("originalPrice")} />
-          </div>
-          <div>
-            <label style={labelStyle}>Stock</label>
-            <input style={inputStyle} type="number" min="0" placeholder="100" value={form.stock} onChange={h("stock")} />
-          </div>
+          <div><label style={labelStyle}>Price (₹) *</label><input style={inputStyle} type="number" min="0" placeholder="999" value={form.price} onChange={h("price")} /></div>
+          <div><label style={labelStyle}>Original Price (₹)</label><input style={inputStyle} type="number" min="0" placeholder="1299" value={form.originalPrice} onChange={h("originalPrice")} /></div>
+          <div><label style={labelStyle}>Stock</label><input style={inputStyle} type="number" min="0" placeholder="100" value={form.stock} onChange={h("stock")} /></div>
         </div>
-
-        {/* Nutrition */}
         <div style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:"10px", padding:"14px", marginBottom:"14px" }}>
-          <div style={{ fontSize:"12px", fontWeight:700, color:"var(--text2)", marginBottom:"10px" }}>🥗 Nutrition Info (optional — for meals & supplements)</div>
+          <div style={{ fontSize:"12px", fontWeight:700, color:"var(--text2)", marginBottom:"10px" }}>🥗 Nutrition Info (optional)</div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:"10px" }}>
             {[["calories","Calories (kcal)"],["protein","Protein (g)"],["carbs","Carbs (g)"],["fat","Fat (g)"]].map(([f,l]) => (
-              <div key={f}>
-                <label style={labelStyle}>{l}</label>
-                <input style={inputStyle} type="number" min="0" placeholder="0" value={form[f]} onChange={h(f)} />
-              </div>
+              <div key={f}><label style={labelStyle}>{l}</label><input style={inputStyle} type="number" min="0" placeholder="0" value={form[f]} onChange={h(f)} /></div>
             ))}
           </div>
         </div>
-
-        {/* Group buy */}
         <div style={{ background:"rgba(16,185,129,0.06)", border:"1px solid rgba(16,185,129,0.2)", borderRadius:"10px", padding:"14px", marginBottom:"24px" }}>
           <label style={{ display:"flex", alignItems:"center", gap:"10px", cursor:"pointer", marginBottom: form.groupBuyEnabled ? "12px" : 0 }}>
             <input type="checkbox" checked={form.groupBuyEnabled} onChange={h("groupBuyEnabled")} style={{ width:"16px", height:"16px", accentColor:"var(--green)" }} />
@@ -296,21 +429,13 @@ function ProductFormModal({ initial, onSave, onClose, saving, token }) {
           </label>
           {form.groupBuyEnabled && (
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px" }}>
-              <div>
-                <label style={labelStyle}>Min. Buyers for Deal</label>
-                <input style={inputStyle} type="number" min="2" placeholder="10" value={form.groupBuyThreshold} onChange={h("groupBuyThreshold")} />
-              </div>
-              <div>
-                <label style={labelStyle}>Discount %</label>
-                <input style={inputStyle} type="number" min="1" max="90" placeholder="15" value={form.groupBuyDiscount} onChange={h("groupBuyDiscount")} />
-              </div>
+              <div><label style={labelStyle}>Min. Buyers for Deal</label><input style={inputStyle} type="number" min="2" placeholder="10" value={form.groupBuyThreshold} onChange={h("groupBuyThreshold")} /></div>
+              <div><label style={labelStyle}>Discount %</label><input style={inputStyle} type="number" min="1" max="90" placeholder="15" value={form.groupBuyDiscount} onChange={h("groupBuyDiscount")} /></div>
             </div>
           )}
         </div>
-
         <div style={{ display:"flex", gap:"10px" }}>
-          <button className="btn btn-accent" style={{ flex:1 }} disabled={saving || !form.name || !form.price}
-            onClick={() => onSave(form)}>
+          <button className="btn btn-accent" style={{ flex:1 }} disabled={saving || !form.name || !form.price} onClick={() => onSave(form)}>
             {saving ? "Saving…" : initial?._id ? "Update Product" : "Add Product"}
           </button>
           <button className="btn btn-outline" onClick={onClose} disabled={saving}>Cancel</button>
@@ -322,11 +447,11 @@ function ProductFormModal({ initial, onSave, onClose, saving, token }) {
 
 // ── Products Tab ───────────────────────────────────────────────────────────────
 function ProductsTab({ products, isApproved, token, onRefresh }) {
-  const [showForm, setShowForm]   = useState(false);
-  const [editing, setEditing]     = useState(null);   // product being edited
-  const [saving, setSaving]       = useState(false);
-  const [deleting, setDeleting]   = useState(null);
-  const [msg, setMsg]             = useState({ type:"", text:"" });
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing]   = useState(null);
+  const [saving, setSaving]     = useState(false);
+  const [deleting, setDeleting] = useState(null);
+  const [msg, setMsg]           = useState({ type:"", text:"" });
 
   const saveProduct = async (form) => {
     setSaving(true); setMsg({ type:"", text:"" });
@@ -372,46 +497,32 @@ function ProductsTab({ products, isApproved, token, onRefresh }) {
       <div className="flex-between mb-4">
         <h4 className="font-heading" style={{ fontSize:"20px" }}>My Products ({products.length})</h4>
         {isApproved && (
-          <button className="btn btn-accent btn-sm" onClick={() => { setEditing(null); setShowForm(true); }}>
-            + Add Product
-          </button>
+          <button className="btn btn-accent btn-sm" onClick={() => { setEditing(null); setShowForm(true); }}>+ Add Product</button>
         )}
       </div>
-
       {msg.text && (
         <div className={`alert alert-${msg.type === "error" ? "error" : "success"}`} style={{ marginBottom:16 }}>
           {msg.text}
           <button onClick={() => setMsg({type:"",text:""})} style={{ background:"none", border:"none", marginLeft:"auto", cursor:"pointer", color:"inherit" }}>✕</button>
         </div>
       )}
-
-      {!isApproved && (
-        <div className="alert alert-error" style={{ marginBottom:16 }}>
-          🔒 Product listing is locked until your account is approved by admin.
-        </div>
-      )}
-
+      {!isApproved && <div className="alert alert-error" style={{ marginBottom:16 }}>🔒 Product listing is locked until your account is approved by admin.</div>}
       {products.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">🛒</div>
-          <div className="empty-state-text">
-            {isApproved ? 'No products yet. Click "+ Add Product" to get started!' : "Get approved to start listing products."}
-          </div>
+          <div className="empty-state-text">{isApproved ? 'No products yet. Click "+ Add Product" to get started!' : "Get approved to start listing products."}</div>
         </div>
       ) : (
         <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
           {products.map(p => (
             <div key={p._id} style={{ display:"flex", gap:"12px", alignItems:"center", padding:"12px 14px",
               background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:"var(--radius)" }}>
-              {/* Image thumbnail */}
               <div style={{ width:"52px", height:"52px", borderRadius:"8px", overflow:"hidden", flexShrink:0,
                 background:"var(--bg2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"22px" }}>
                 {p.imageUrl
                   ? <img src={p.imageUrl} alt={p.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}
-                      onError={e => { e.target.style.display="none"; e.target.nextSibling.style.display="flex"; }}
-                    />
-                  : null}
-                <span style={{ display: p.imageUrl ? "none" : "flex" }}>{CATEGORY_ICONS[p.category]||"📦"}</span>
+                      onError={e => { e.target.style.display="none"; }}/>
+                  : CATEGORY_ICONS[p.category]||"📦"}
               </div>
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontWeight:700, fontSize:"14px" }}>{p.name}</div>
@@ -420,13 +531,9 @@ function ProductsTab({ products, isApproved, token, onRefresh }) {
                 </div>
               </div>
               <div style={{ display:"flex", gap:"8px", flexShrink:0, alignItems:"center" }}>
-                <span className={`tag ${p.isAvailable ? "tag-approved" : "tag-rejected"}`}>
-                  {p.isAvailable ? "Live" : "Off"}
-                </span>
-                <button className="btn btn-outline btn-sm"
-                  onClick={() => { setEditing(p); setShowForm(true); }}>✏ Edit</button>
-                <button className="btn btn-danger btn-sm"
-                  onClick={() => deleteProduct(p._id)} disabled={deleting === p._id}>
+                <span className={`tag ${p.isAvailable ? "tag-approved" : "tag-rejected"}`}>{p.isAvailable ? "Live" : "Off"}</span>
+                <button className="btn btn-outline btn-sm" onClick={() => { setEditing(p); setShowForm(true); }}>✏ Edit</button>
+                <button className="btn btn-danger btn-sm" onClick={() => deleteProduct(p._id)} disabled={deleting === p._id}>
                   {deleting === p._id ? "…" : "🗑"}
                 </button>
               </div>
@@ -434,15 +541,10 @@ function ProductsTab({ products, isApproved, token, onRefresh }) {
           ))}
         </div>
       )}
-
       {showForm && (
-        <ProductFormModal
-          initial={editing}
-          onSave={saveProduct}
+        <ProductFormModal initial={editing} onSave={saveProduct}
           onClose={() => { setShowForm(false); setEditing(null); }}
-          saving={saving}
-          token={token}
-        />
+          saving={saving} token={token} />
       )}
     </div>
   );
@@ -497,7 +599,7 @@ export default function VendorDashboard() {
     setMsg({ type:"info", text:"Uploading certificate…" });
     try {
       await api.put("/vendors/me/certificate", formData, {
-        headers: { Authorization:`Bearer ${token}`, "Content-Type":"multipart/form-data" },
+        headers: { Authorization:`Bearer ${token}` },
       });
       const vRes = await api.get("/vendors/me", { headers:{ Authorization:`Bearer ${token}` } });
       setVendor(vRes.data.vendor);
@@ -517,20 +619,16 @@ export default function VendorDashboard() {
   if (!vendor) return (
     <div className="card">
       <h3 className="font-heading" style={{ fontSize:"22px", marginBottom:"8px" }}>Set Up Your Vendor Profile</h3>
-      <p style={{ color:"var(--text2)", fontSize:"14px", marginBottom:"20px" }}>
-        List your supplements, meals, or fitness products on FlexFit Marketplace.
-      </p>
+      <p style={{ color:"var(--text2)", fontSize:"14px", marginBottom:"20px" }}>List your supplements, meals, or fitness products on FlexFit Marketplace.</p>
       {msg.text && <div className={`alert alert-${msg.type === "error" ? "error" : "success"} mb-4`}>{msg.text}</div>}
       <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
         <div className="form-group">
           <label className="form-label">Business Name *</label>
-          <input className="form-input" placeholder="e.g. ProNutrition Labs"
-            value={regForm.businessName} onChange={e => setRegForm(f => ({ ...f, businessName: e.target.value }))} />
+          <input className="form-input" placeholder="e.g. ProNutrition Labs" value={regForm.businessName} onChange={e => setRegForm(f => ({ ...f, businessName: e.target.value }))} />
         </div>
         <div className="form-group">
           <label className="form-label">Business Type</label>
-          <select className="form-select" value={regForm.businessType}
-            onChange={e => setRegForm(f => ({ ...f, businessType: e.target.value }))}>
+          <select className="form-select" value={regForm.businessType} onChange={e => setRegForm(f => ({ ...f, businessType: e.target.value }))}>
             <option value="supplements">Supplements</option>
             <option value="meal_kitchen">Meal Kitchen</option>
             <option value="equipment">Equipment</option>
@@ -540,13 +638,11 @@ export default function VendorDashboard() {
         </div>
         <div className="form-group">
           <label className="form-label">City</label>
-          <input className="form-input" placeholder="e.g. Mumbai"
-            value={regForm.city} onChange={e => setRegForm(f => ({ ...f, city: e.target.value }))} />
+          <input className="form-input" placeholder="e.g. Mumbai" value={regForm.city} onChange={e => setRegForm(f => ({ ...f, city: e.target.value }))} />
         </div>
         <div className="form-group">
           <label className="form-label">Description</label>
-          <textarea className="form-textarea" rows="2" placeholder="What do you sell?"
-            value={regForm.description} onChange={e => setRegForm(f => ({ ...f, description: e.target.value }))} />
+          <textarea className="form-textarea" rows="2" placeholder="What do you sell?" value={regForm.description} onChange={e => setRegForm(f => ({ ...f, description: e.target.value }))} />
         </div>
         <button className="btn btn-accent btn-full" onClick={register} disabled={registering}>
           {registering ? "Creating Profile…" : "Create Vendor Profile"}
@@ -561,7 +657,6 @@ export default function VendorDashboard() {
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:"16px" }}>
-
       {/* Header */}
       <div className="card" style={{ padding:"16px" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -577,12 +672,10 @@ export default function VendorDashboard() {
         </div>
       </div>
 
-      {/* Alert */}
       {msg.text && (
         <div className={`alert alert-${msg.type === "error" ? "error" : msg.type === "info" ? "info" : "success"}`}>
           {msg.text}
-          <button onClick={() => setMsg({ type:"", text:"" })}
-            style={{ background:"none", border:"none", marginLeft:"auto", cursor:"pointer", color:"inherit" }}>✕</button>
+          <button onClick={() => setMsg({ type:"", text:"" })} style={{ background:"none", border:"none", marginLeft:"auto", cursor:"pointer", color:"inherit" }}>✕</button>
         </div>
       )}
 
@@ -591,9 +684,9 @@ export default function VendorDashboard() {
         <div style={{ background:`${vcfg.color}12`, border:`1px solid ${vcfg.color}44`, borderRadius:"var(--radius)", padding:"16px 20px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
             <span style={{ fontSize:20 }}>{vcfg.icon}</span>
-            <span style={{ fontWeight:700, color: vcfg.color, fontSize:15 }}>{vcfg.label}</span>
+            <span style={{ fontWeight:700, color:vcfg.color, fontSize:15 }}>{vcfg.label}</span>
           </div>
-          <p style={{ fontSize:13, color:"var(--text2)", marginBottom: vendor.verificationStatus === "rejected" && vendor.rejectionReason ? 6 : 12 }}>{vcfg.desc}</p>
+          <p style={{ fontSize:13, color:"var(--text2)", marginBottom:12 }}>{vcfg.desc}</p>
           {vendor.verificationStatus === "rejected" && vendor.rejectionReason && (
             <div style={{ fontSize:13, color:"#ef4444", marginBottom:12, fontWeight:600 }}>Reason: {vendor.rejectionReason}</div>
           )}
@@ -612,7 +705,7 @@ export default function VendorDashboard() {
         </div>
       )}
 
-      {/* Stats */}
+      {/* Stats row */}
       <div className="grid-3">
         <div className="stat-card">
           <div style={{ fontSize:"22px", marginBottom:"8px" }}>📦</div>
@@ -640,6 +733,10 @@ export default function VendorDashboard() {
         ))}
       </div>
 
+      {tab === "overview" && (
+        <OverviewTab vendor={vendor} orders={orders} products={products} onTabChange={setTab} />
+      )}
+
       {tab === "orders" && (
         <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
           {orders.length === 0
@@ -650,17 +747,7 @@ export default function VendorDashboard() {
       )}
 
       {tab === "products" && (
-        <ProductsTab
-          products={products}
-          isApproved={isApproved}
-          token={token}
-          onRefresh={() => {
-            api.get("/vendors/products/mine", { headers:{ Authorization:`Bearer ${token}` } })
-              .then(r => setProducts(r.value?.data?.products || r.data?.products || []))
-              .catch(() => {});
-            loadAll();
-          }}
-        />
+        <ProductsTab products={products} isApproved={isApproved} token={token} onRefresh={loadAll} />
       )}
     </div>
   );
