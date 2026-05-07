@@ -32,11 +32,12 @@ const CLIENT_TABS = [
   { id: "myprograms",  icon: "📚", label: "My Programs"      },
   { id: "marketplace", icon: "🏪", label: "Browse Programs"  },
   { id: "trainers",    icon: "🔍", label: "Find Trainers"    },
-  { id: "workouts",    icon: "🏋️", label: "Log Workout"     },
+  { id: "workouts",    icon: "🏋️", label: "Log Workout"      },
   { id: "progress",    icon: "📈", label: "Progress"         },
   { id: "groupchat",   icon: "👥", label: "Group Chats"      },
   { id: "messages",    icon: "💬", label: "Messages"         },
   { id: "profile",     icon: "👤", label: "Profile"          },
+  { id: "dietplan",    icon: "🥗", label: "My Diet Plan"     },
 ];
 
 const TRAINER_TABS = [
