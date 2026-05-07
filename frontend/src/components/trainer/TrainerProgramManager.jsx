@@ -268,12 +268,14 @@ function EnrolledClients({ program }) {
   );
 }
 
+// ... (imports remain same)
+
 export default function TrainerProgramManager() {
   const { token } = useAuth();
   const [programs, setPrograms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeProgram, setActiveProgram] = useState(null);
-  const [view, setView] = useState("clients"); // "clients" | "assign"
+  const [view, setView] = useState("clients");
 
   useEffect(() => {
     (async () => {
@@ -299,7 +301,8 @@ export default function TrainerProgramManager() {
           <div>
             <h3 className="font-heading" style={{ fontSize:"22px" }}>{activeProgram.title}</h3>
             <div style={{ color:"var(--text2)", fontSize:"13px", marginTop:"4px" }}>
-              ${activeProgram.price} · {activeProgram.durationWeeks}w · {activeProgram.enrolledCount} enrolled
+              {/* UPDATED: Changed $ to ₹ */}
+              ₹{activeProgram.price?.toLocaleString("en-IN")} · {activeProgram.durationWeeks}w · {activeProgram.enrolledCount} enrolled
             </div>
           </div>
           <div style={{ display:"flex", gap:"8px" }}>
@@ -330,7 +333,8 @@ export default function TrainerProgramManager() {
               <div style={{ flex:1 }}>
                 <div style={{ fontWeight:700, fontSize:"15px", marginBottom:"4px" }}>{p.title}</div>
                 <div style={{ fontSize:"12px", color:"var(--text3)" }}>
-                  ${p.price} · {p.durationWeeks}w · {p.enrolledCount} enrolled · {p.category?.replace("_"," ")}
+                  {/* UPDATED: Changed $ to ₹ and added Indian Number Formatting */}
+                  ₹{p.price?.toLocaleString("en-IN")} · {p.durationWeeks}w · {p.enrolledCount} enrolled · {p.category?.replace("_"," ")}
                 </div>
               </div>
               <div style={{ display:"flex", gap:"8px", flexShrink:0 }}>

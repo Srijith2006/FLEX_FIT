@@ -2,12 +2,16 @@
 import api from "../../services/api.js";
 import useAuth from "../../hooks/useAuth.js";
 
-const emptyDay = (label) => ({ day: label, exercises: [{ name: "", sets: 3, reps: 10, weight: 0 }] });
+const emptyDay = (label) => ({ 
+  day: label, 
+  exercises: [{ name: "", sets: 3, reps: 10, weight: 0 }] 
+});
 
 export default function ProgramBuilder() {
   const { token } = useAuth();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [price, setPrice] = useState(""); // New Price State
   const [days, setDays] = useState([emptyDay("Day 1")]);
   const [msg, setMsg] = useState({ type: "", text: "" });
   const [loading, setLoading] = useState(false);
@@ -37,15 +41,32 @@ export default function ProgramBuilder() {
   };
 
   const save = async () => {
-    if (!title.trim()) { setMsg({ type: "error", text: "Program title is required." }); return; }
+    if (!title.trim()) { 
+      setMsg({ type: "error", text: "Program title is required." }); 
+      return; 
+    }
+    
     setLoading(true);
     setMsg({ type: "", text: "" });
+    
     try {
-      await api.post("/workouts/programs", { title, description, days }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      // Logic updated to include price converted to Number
+      await api.post("/workouts/programs", 
+        { 
+          title, 
+          description, 
+          days, 
+          price: Number(price) || 0 
+        }, 
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
       setMsg({ type: "success", text: "Program created successfully! 🎉" });
-      setTitle(""); setDescription("");
+      
+      // Reset form
+      setTitle(""); 
+      setDescription(""); 
+      setPrice("");
       setDays([emptyDay("Day 1")]);
     } catch (e) {
       setMsg({ type: "error", text: e?.response?.data?.message || "Failed to create program." });
@@ -58,17 +79,55 @@ export default function ProgramBuilder() {
     <div className="card">
       <h3 className="font-heading" style={{ fontSize: "22px", marginBottom: "20px" }}>Build Workout Program</h3>
 
-      {msg.text && <div className={`alert alert-${msg.type === "error" ? "error" : "success"} mb-4`}>{msg.text}</div>}
+      {msg.text && (
+        <div className={`alert alert-${msg.type === "error" ? "error" : "success"} mb-4`}>
+          {msg.text}
+        </div>
+      )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
         <div className="form-group">
           <label className="form-label">Program Title</label>
-          <input className="form-input" placeholder="e.g. 4-Week Fat Loss Program" value={title} onChange={e => setTitle(e.target.value)} />
+          <input 
+            className="form-input" 
+            placeholder="e.g. 4-Week Fat Loss Program" 
+            value={title} 
+            onChange={e => setTitle(e.target.value)} 
+          />
         </div>
 
         <div className="form-group">
           <label className="form-label">Description</label>
-          <textarea className="form-textarea" placeholder="Describe the program goals and structure…" rows="2" value={description} onChange={e => setDescription(e.target.value)} />
+          <textarea 
+            className="form-textarea" 
+            placeholder="Describe the program goals and structure…" 
+            rows="2" 
+            value={description} 
+            onChange={e => setDescription(e.target.value)} 
+          />
+        </div>
+
+        {/* PRICE SECTION ADDED HERE */}
+        <div className="form-group">
+          <label className="form-label">Program Price (₹)</label>
+          <div style={{ position: "relative" }}>
+            <span style={{ 
+              position: "absolute", 
+              left: "12px", 
+              top: "50%", 
+              transform: "translateY(-50%)", 
+              color: "var(--text3)",
+              fontWeight: "600"
+            }}>₹</span>
+            <input 
+              className="form-input" 
+              type="number" 
+              placeholder="Enter amount in Rupees" 
+              style={{ paddingLeft: "28px" }} 
+              value={price} 
+              onChange={e => setPrice(e.target.value)} 
+            />
+          </div>
         </div>
 
         {/* Days */}
@@ -85,12 +144,14 @@ export default function ProgramBuilder() {
                   <input
                     className="form-input"
                     value={day.day}
-                    style={{ maxWidth: "180px" }}
+                    style={{ maxWidth: "180px", fontWeight: "bold" }}
                     onChange={e => setDays(prev => prev.map((d, di) => di === dayIdx ? { ...d, day: e.target.value } : d))}
                   />
                   <div style={{ display: "flex", gap: "8px" }}>
                     <button className="btn btn-outline btn-sm" onClick={() => addExercise(dayIdx)}>+ Exercise</button>
-                    {days.length > 1 && <button className="btn btn-danger btn-sm" onClick={() => removeDay(dayIdx)}>✕ Day</button>}
+                    {days.length > 1 && (
+                      <button className="btn btn-danger btn-sm" onClick={() => removeDay(dayIdx)}>✕ Day</button>
+                    )}
                   </div>
                 </div>
 
@@ -111,7 +172,11 @@ export default function ProgramBuilder() {
         </div>
 
         <button className="btn btn-accent btn-full" onClick={save} disabled={loading}>
-          {loading ? <><span className="spinner" style={{borderTopColor:"#fff"}}></span> Creating…</> : "📋 Create Program"}
+          {loading ? (
+            <><span className="spinner" style={{borderTopColor:"#fff", width: "14px", height: "14px"}}></span> Creating...</>
+          ) : (
+            "📋 Create Program"
+          )}
         </button>
       </div>
     </div>
