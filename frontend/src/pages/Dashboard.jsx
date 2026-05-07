@@ -22,6 +22,7 @@ import LiveSessionManager    from "../components/trainer/LiveSessionManager.jsx"
 import VerificationStatus    from "../components/trainer/VerificationStatus.jsx";
 import TrainerRecommendProducts from "../components/trainer/TrainerRecommendProducts.jsx";
 import TrainerDietPlanBuilder from "../components/trainer/TrainerDietPlanBuilder.jsx";
+import ClientProofFeed        from "../components/trainer/ClientProofFeed.jsx";
 
 // Shared & Specialized
 import Inbox                 from "../components/common/Inbox.jsx";
@@ -35,7 +36,7 @@ const CLIENT_TABS = [
   { id: "marketplace", icon: "🏪", label: "Browse Programs"  },
   { id: "trainers",    icon: "🔍", label: "Find Trainers"    },
   { id: "workouts",    icon: "🏋️", label: "Log Workout"      },
-  { id: "proof",       icon: "📸", label: "Proof of Work"    },
+  { id: "proof",       icon: "📸", label: "Workout Proofs"    },
   { id: "progress",    icon: "📈", label: "Progress"         },
   { id: "groupchat",   icon: "👥", label: "Group Chats"      },
   { id: "messages",    icon: "💬", label: "Messages"         },
@@ -51,6 +52,7 @@ const TRAINER_TABS = [
   { id: "sessions",     icon: "🎥", label: "Live Sessions"    },
   { id: "groupchat",    icon: "👥", label: "Group Chats"      },
   { id: "messages",     icon: "💬", label: "Messages"         },
+  { id: "proof",        icon: "📸", label: "Review Queue"    },
   { id: "verification", icon: "✅", label: "Verification"     },
   { id: "dietplan",     icon: "🥗", label: "Diet Plans"       },
   { id: "recommend",    icon: "⭐", label: "Recommend Products" },
@@ -124,6 +126,7 @@ export default function Dashboard() {
       if (activeTab === "profile")      return <TrainerProfileView />;
       if (activeTab === "recommend")    return <TrainerRecommendProducts />;
       if (activeTab === "dietplan")     return <TrainerDietPlanBuilder />;
+      if (activeTab === "proof")        return <ClientProofFeed />;
     }
 
     return null;
