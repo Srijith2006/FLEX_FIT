@@ -11,6 +11,7 @@ import WorkoutLogger        from "../components/client/WorkoutLogger.jsx";
 import ProgressTracker      from "../components/client/ProgressTracker.jsx";
 import ClientProfile        from "../components/client/ClientProfile.jsx";
 import ClientDietLog        from "../components/client/ClientDietLog.jsx";
+import ProofOfWork          from "../components/client/ProofOfWork.jsx";
 
 // Trainer components
 import TrainerOverview       from "../components/trainer/TrainerOverview.jsx";
@@ -34,6 +35,7 @@ const CLIENT_TABS = [
   { id: "marketplace", icon: "🏪", label: "Browse Programs"  },
   { id: "trainers",    icon: "🔍", label: "Find Trainers"    },
   { id: "workouts",    icon: "🏋️", label: "Log Workout"      },
+  { id: "proof",       icon: "📸", label: "Proof of Work"    },
   { id: "progress",    icon: "📈", label: "Progress"         },
   { id: "groupchat",   icon: "👥", label: "Group Chats"      },
   { id: "messages",    icon: "💬", label: "Messages"         },
@@ -108,6 +110,7 @@ export default function Dashboard() {
       if (activeTab === "messages")    return <Inbox />;
       if (activeTab === "profile")     return <ClientProfile />;
       if (activeTab === "dietplan")    return <ClientDietLog />;
+      if (activeTab === "proof")       return <ProofOfWork />;
     }
 
     if (user?.role === "trainer") {

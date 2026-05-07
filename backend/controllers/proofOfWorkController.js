@@ -10,11 +10,13 @@ export const uploadProof = async (req, res, next) => {
     const { date, caption, type, dailyWorkoutId, programId } = req.body;
     const today = date || new Date().toISOString().split("T")[0];
 
-    // Upsert — one proof per client per day per type
+    // Use Cloudinary URL (req.file.path) if available, else fallback to local path
+    const imageUrl = req.file.path || `/uploads/${req.file.filename}`;
+
     const proof = await ProofOfWork.findOneAndUpdate(
       { client: client._id, date: today, type: type || "workout" },
       {
-        imageUrl:     `/uploads/${req.file.filename}`,
+        imageUrl,
         caption:      caption || "",
         dailyWorkout: dailyWorkoutId || null,
         program:      programId || null,
@@ -30,12 +32,11 @@ export const uploadProof = async (req, res, next) => {
 export const myProofs = async (req, res, next) => {
   try {
     const client = await Client.findOne({ user: req.user._id });
-    if (!client) return res.json({ proofs: [] });
+    if (!client) return res.json({ proofs: [], streak: 0 });
 
     const proofs = await ProofOfWork.find({ client: client._id })
       .sort({ date: -1 }).limit(30);
 
-    // Calculate streak from proofs
     const dateSet = new Set(proofs.filter(p => p.type === "workout").map(p => p.date));
     let streak = 0;
     const d = new Date();
