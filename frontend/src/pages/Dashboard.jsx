@@ -10,6 +10,7 @@ import TrainerBrowse        from "../components/client/TrainerBrowse.jsx";
 import WorkoutLogger        from "../components/client/WorkoutLogger.jsx";
 import ProgressTracker      from "../components/client/ProgressTracker.jsx";
 import ClientProfile        from "../components/client/ClientProfile.jsx";
+import ClientDietLog        from "../components/client/ClientDietLog.jsx";
 
 // Trainer components
 import TrainerOverview       from "../components/trainer/TrainerOverview.jsx";
