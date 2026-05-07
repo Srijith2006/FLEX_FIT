@@ -1,4 +1,4 @@
-import { ProofOfWork, Client } from "../models/index.js";
+import { ProofOfWork, Client, Enrollment } from "../models/index.js";
 
 export const uploadProof = async (req, res, next) => {
   try {
@@ -44,4 +44,39 @@ export const myProofs = async (req, res, next) => {
 
     res.json({ proofs, streak });
   } catch (error) { next(error); }
+};
+
+export const getTrainerFeed = async (req, res, next) => {
+  try {
+    // 1. Find all active enrollments for the logged-in trainer
+    const enrollments = await Enrollment.find({ 
+      trainer: req.user._id, 
+      status: "active" 
+    });
+
+    // 2. Extract the client IDs from those enrollments
+    const clientIds = enrollments.map(e => e.client);
+
+    // 3. Find proofs belonging to those clients and populate their names
+    const proofs = await ProofOfWork.find({ client: { $in: clientIds } })
+      .populate({
+        path: "client",
+        populate: { path: "user", select: "name" }
+      })
+      .sort({ date: -1, createdAt: -1 });
+
+    // 4. Format the data to match what ClientProofFeed.jsx expects
+    const formatted = proofs.map(p => ({
+      _id: p._id,
+      imageUrl: p.imageUrl,
+      caption: p.caption,
+      type: p.type,
+      date: p.date,
+      clientName: p.client?.user?.name || "Member"
+    }));
+
+    res.json({ proofs: formatted });
+  } catch (error) {
+    next(error);
+  }
 };
