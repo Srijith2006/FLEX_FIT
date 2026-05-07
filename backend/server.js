@@ -31,6 +31,7 @@ import orderRoutes        from "./routes/orders.js";
 import vendorRoutes       from "./routes/vendors.js";
 import groupChatRoutes    from "./routes/groupChat.js";
 import proofOfWorkRoutes  from "./routes/proofOfWork.js";
+import dietPlanRoutes     from "./routes/dietPlans.js";
 import { notFound, errorHandler } from "./middleware/errorHandler.js";
 
 dotenv.config();
@@ -105,6 +106,7 @@ app.use("/api/orders",         orderRoutes);
 app.use("/api/vendors",        vendorRoutes);
 app.use("/api/group-chat",     groupChatRoutes);
 app.use("/api/proof",          proofOfWorkRoutes);
+app.use("/api/diet-plans",     dietPlanRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
