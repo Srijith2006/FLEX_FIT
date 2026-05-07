@@ -37,8 +37,9 @@ const CLIENT_TABS = [
   { id: "progress",    icon: "📈", label: "Progress"         },
   { id: "groupchat",   icon: "👥", label: "Group Chats"      },
   { id: "messages",    icon: "💬", label: "Messages"         },
-  { id: "profile",     icon: "👤", label: "Profile"          },
   { id: "dietplan",    icon: "🥗", label: "My Diet Plan"     },
+  { id: "profile",     icon: "👤", label: "Profile"          },
+  
 ];
 
 const TRAINER_TABS = [
@@ -119,6 +120,7 @@ export default function Dashboard() {
       if (activeTab === "verification") return <VerificationStatus />;
       if (activeTab === "profile")      return <TrainerProfileView />;
       if (activeTab === "recommend")    return <TrainerRecommendProducts />;
+      if (activeTab === "dietplan")     return <TrainerDietPlanBuilder />;
     }
 
     return null;
