@@ -138,7 +138,7 @@ export default function TrainerProgramBuilder() {
                 <div>
                   <div style={{ fontWeight: 700 }}>{p.title}</div>
                   <div style={{ fontSize: "12px", color: "var(--text3)" }}>
-                    ${p.price} · {p.durationWeeks}w · {p.days?.length || 0} days · {p.enrolledCount} enrolled
+                    ₹{p.price} · {p.durationWeeks}w · {p.days?.length || 0} days · {p.enrolledCount} enrolled
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: "8px" }}>
@@ -183,7 +183,7 @@ export default function TrainerProgramBuilder() {
                 <input className="form-input" type="number" min="1" max="52" value={form.durationWeeks} onChange={e => setForm(f => ({ ...f, durationWeeks: e.target.value }))} />
               </div>
               <div className="form-group">
-                <label className="form-label">Price ($)</label>
+                <label className="form-label">Price (₹)</label>
                 <input className="form-input" type="number" min="0" step="0.01" placeholder="e.g. 49" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
               </div>
             </div>
