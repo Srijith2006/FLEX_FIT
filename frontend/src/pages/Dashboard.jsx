@@ -52,7 +52,7 @@ const TRAINER_TABS = [
   { id: "sessions",     icon: "🎥", label: "Live Sessions"    },
   { id: "groupchat",    icon: "👥", label: "Group Chats"      },
   { id: "messages",     icon: "💬", label: "Messages"         },
-  { id: "proof",        icon: "📸", label: "Review Queue"    },
+  { id: "clientproof",        icon: "📸", label: "Review Queue"    },
   { id: "verification", icon: "✅", label: "Verification"     },
   { id: "dietplan",     icon: "🥗", label: "Diet Plans"       },
   { id: "recommend",    icon: "⭐", label: "Recommend Products" },
@@ -126,7 +126,7 @@ export default function Dashboard() {
       if (activeTab === "profile")      return <TrainerProfileView />;
       if (activeTab === "recommend")    return <TrainerRecommendProducts />;
       if (activeTab === "dietplan")     return <TrainerDietPlanBuilder />;
-      if (activeTab === "proof")        return <ClientProofFeed />;
+      if (activeTab === "clientproof")  return <ClientProofFeed />;
     }
 
     return null;

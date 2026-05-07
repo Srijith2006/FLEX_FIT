@@ -1,4 +1,4 @@
-import { ProofOfWork, Client, Enrollment } from "../models/index.js";
+import { ProofOfWork, Client, Trainer, Enrollment, Program } from "../models/index.js";
 
 export const uploadProof = async (req, res, next) => {
   try {
@@ -46,37 +46,39 @@ export const myProofs = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-export const getTrainerFeed = async (req, res, next) => {
+// ── TRAINER — see all clients' proofs ─────────────────────────────────────────
+export const trainerProofFeed = async (req, res, next) => {
   try {
-    // 1. Find all active enrollments for the logged-in trainer
-    const enrollments = await Enrollment.find({ 
-      trainer: req.user._id, 
-      status: "active" 
+    const trainer = await Trainer.findOne({ user: req.user._id });
+    if (!trainer) return res.json({ proofs: [] });
+
+    // Get all programs by this trainer
+    const programs = await Program.find({ trainer: trainer._id }).select("_id");
+    const programIds = programs.map(p => p._id);
+
+    // Get all clients enrolled in any of trainer's programs
+    const enrollments = await Enrollment.find({ program: { $in: programIds } })
+      .populate({ path: "client", populate: { path: "user", select: "name" } });
+
+    const clientIds = [...new Set(enrollments.map(e => String(e.client?._id)).filter(Boolean))];
+
+    // Build clientId → name map
+    const clientNameMap = {};
+    enrollments.forEach(e => {
+      if (e.client?._id) clientNameMap[String(e.client._id)] = e.client.user?.name || "Client";
     });
 
-    // 2. Extract the client IDs from those enrollments
-    const clientIds = enrollments.map(e => e.client);
-
-    // 3. Find proofs belonging to those clients and populate their names
+    // Fetch proofs for all these clients
     const proofs = await ProofOfWork.find({ client: { $in: clientIds } })
-      .populate({
-        path: "client",
-        populate: { path: "user", select: "name" }
-      })
-      .sort({ date: -1, createdAt: -1 });
+      .sort({ date: -1, createdAt: -1 })
+      .limit(100);
 
-    // 4. Format the data to match what ClientProofFeed.jsx expects
-    const formatted = proofs.map(p => ({
-      _id: p._id,
-      imageUrl: p.imageUrl,
-      caption: p.caption,
-      type: p.type,
-      date: p.date,
-      clientName: p.client?.user?.name || "Member"
+    // Attach client name to each proof
+    const enriched = proofs.map(p => ({
+      ...p.toObject(),
+      clientName: clientNameMap[String(p.client)] || "Client",
     }));
 
-    res.json({ proofs: formatted });
-  } catch (error) {
-    next(error);
-  }
+    res.json({ proofs: enriched });
+  } catch (error) { next(error); }
 };
