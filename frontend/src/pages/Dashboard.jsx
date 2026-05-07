@@ -112,6 +112,7 @@ export default function Dashboard() {
       if (activeTab === "messages")     return <Inbox />;
       if (activeTab === "verification") return <VerificationStatus />;
       if (activeTab === "profile")      return <TrainerProfileView />;
+      if (activeTab === "recommend")    return <TrainerRecommendProducts />;
     }
 
     return null;
