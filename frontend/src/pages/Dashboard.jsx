@@ -20,6 +20,7 @@ import TrainerProgramBuilder from "../components/trainer/TrainerProgramBuilder.j
 import LiveSessionManager    from "../components/trainer/LiveSessionManager.jsx";
 import VerificationStatus    from "../components/trainer/VerificationStatus.jsx";
 import TrainerRecommendProducts from "../components/trainer/TrainerRecommendProducts.jsx";
+import TrainerDietPlanBuilder from "../components/trainer/TrainerDietPlanBuilder.jsx";
 
 // Shared & Specialized
 import Inbox                 from "../components/common/Inbox.jsx";
@@ -48,8 +49,10 @@ const TRAINER_TABS = [
   { id: "groupchat",    icon: "👥", label: "Group Chats"      },
   { id: "messages",     icon: "💬", label: "Messages"         },
   { id: "verification", icon: "✅", label: "Verification"     },
-  { id: "profile",      icon: "👤", label: "My Profile"       },
+  { id: "dietplan",     icon: "🥗", label: "Diet Plans"       },
   { id: "recommend",    icon: "⭐", label: "Recommend Products" },
+  { id: "profile",      icon: "👤", label: "My Profile"       },
+  
 ];
 
 // RECTIFICATION: Added dedicated Vendor tabs
