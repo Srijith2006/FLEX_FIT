@@ -10,10 +10,11 @@ export default function ClientOverview() {
   useEffect(() => {
     (async () => {
       try {
-        const [profileRes, logsRes, enrollRes] = await Promise.all([
+        const [profileRes, logsRes, enrollRes, dietRes] = await Promise.all([
           api.get("/clients/me",          { headers: { Authorization: `Bearer ${token}` } }),
           api.get("/workouts/logs/mine",   { headers: { Authorization: `Bearer ${token}` } }),
           api.get("/programs/enrolled",    { headers: { Authorization: `Bearer ${token}` } }),
+          api.get("/diet-plans/client-plans", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { plans: [] } })),
         ]);
 
         const client      = profileRes.data.client;
@@ -51,6 +52,7 @@ export default function ClientOverview() {
           recentLogs:      logs.slice(0, 3),
           enrollments,
           profileComplete: !!(client.age && client.gender && client.height && client.currentWeight),
+          dietPlans: dietRes.data.plans || [],
         });
       } catch {} finally { setLoading(false); }
     })();
@@ -229,6 +231,58 @@ export default function ClientOverview() {
           </div>
         </div>
       )}
+      {/* Diet Plan Preview */}
+      {stats.dietPlans?.length > 0 && (() => {
+        const plan = stats.dietPlans[0];
+        const d = new Date().getDay();
+        const todayIdx = d === 0 ? 6 : d - 1;
+        const today = plan.days?.[todayIdx];
+        return (
+          <div className="card" style={{ border:"1px solid rgba(16,185,129,0.3)", background:"rgba(16,185,129,0.03)" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"12px" }}>
+              <div style={{ fontWeight:700, fontSize:"15px" }}>🥗 Today's Diet Plan</div>
+              <span style={{ fontSize:"12px", color:"var(--green)", fontWeight:700 }}>{plan.title}</span>
+            </div>
+            {today ? (
+              <div>
+                <div style={{ display:"flex", gap:"8px", marginBottom:"12px", flexWrap:"wrap" }}>
+                  {[
+                    { label:"Target", value:`${plan.dailyCalorieTarget} kcal`, color:"var(--gold)" },
+                    { label:"Planned", value:`${today.totalCalories} kcal`, color:"var(--accent)" },
+                    { label:"Protein", value:`${today.totalProtein}g`, color:"var(--accent2)" },
+                  ].map(m => (
+                    <div key={m.label} style={{ padding:"6px 12px", borderRadius:"8px",
+                      background:"var(--bg3)", border:"1px solid var(--border)", textAlign:"center" }}>
+                      <div style={{ fontSize:"13px", fontWeight:700, color:m.color }}>{m.value}</div>
+                      <div style={{ fontSize:"10px", color:"var(--text3)" }}>{m.label}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
+                  {["breakfast","lunch","dinner"].map(slot => {
+                    const items = today[slot] || [];
+                    if (!items.length) return null;
+                    const icons = { breakfast:"🌅", lunch:"☀️", dinner:"🌙" };
+                    return (
+                      <div key={slot} style={{ display:"flex", justifyContent:"space-between",
+                        padding:"8px 12px", background:"var(--bg3)", borderRadius:"8px",
+                        border:"1px solid var(--border)", fontSize:"13px" }}>
+                        <span>{icons[slot]} {slot.charAt(0).toUpperCase()+slot.slice(1)}: {items.map(i=>i.name).join(", ")}</span>
+                        <span style={{ color:"var(--gold)", fontWeight:700, flexShrink:0, marginLeft:"8px" }}>
+                          {items.reduce((s,i)=>s+(i.calories||0),0)} kcal
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div style={{ color:"var(--text3)", fontSize:"13px" }}>No meals planned for today.</div>
+            )}
+          </div>
+        );
+      })()}
+
     </div>
   );
 }

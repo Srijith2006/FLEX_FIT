@@ -18,10 +18,10 @@ import TrainerProgramManager from "../components/trainer/TrainerProgramManager.j
 import TrainerProgramBuilder from "../components/trainer/TrainerProgramBuilder.jsx";
 import LiveSessionManager    from "../components/trainer/LiveSessionManager.jsx";
 import VerificationStatus    from "../components/trainer/VerificationStatus.jsx";
-import TrainerRecommendProducts from "../components/trainer/TrainerRecommendProducts.jsx";
 
 // Shared & Specialized
 import Inbox                 from "../components/common/Inbox.jsx";
+import ClientDietLog         from "../components/client/ClientDietLog.jsx";
 import GroupChatList         from "../components/common/GroupChatList.jsx";
 import AdminDashboard        from "../components/admin/AdminDashboard.jsx";
 import VendorDashboard       from "../components/Vendor/VendorDashboard.jsx";
@@ -36,6 +36,7 @@ const CLIENT_TABS = [
   { id: "groupchat",   icon: "👥", label: "Group Chats"      },
   { id: "messages",    icon: "💬", label: "Messages"         },
   { id: "profile",     icon: "👤", label: "Profile"          },
+  { id: "dietplan",    icon: "🥗", label: "My Diet Plan"     },
 ];
 
 const TRAINER_TABS = [
@@ -47,7 +48,6 @@ const TRAINER_TABS = [
   { id: "messages",     icon: "💬", label: "Messages"         },
   { id: "verification", icon: "✅", label: "Verification"     },
   { id: "profile",      icon: "👤", label: "My Profile"       },
-  { id: "recommend",    icon: "⭐", label: "Recommend Products" },
 ];
 
 // RECTIFICATION: Added dedicated Vendor tabs
@@ -101,6 +101,7 @@ export default function Dashboard() {
       if (activeTab === "groupchat")   return <GroupChatList />;
       if (activeTab === "messages")    return <Inbox />;
       if (activeTab === "profile")     return <ClientProfile />;
+      if (activeTab === "dietplan")    return <ClientDietLog />;
     }
 
     if (user?.role === "trainer") {
@@ -112,7 +113,6 @@ export default function Dashboard() {
       if (activeTab === "messages")     return <Inbox />;
       if (activeTab === "verification") return <VerificationStatus />;
       if (activeTab === "profile")      return <TrainerProfileView />;
-      if (activeTab === "recommend")    return <TrainerRecommendProducts />;
     }
 
     return null;
