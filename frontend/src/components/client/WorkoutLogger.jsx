@@ -4,6 +4,17 @@ import useAuth from "../../hooks/useAuth.js";
 
 const EXERCISE_TEMPLATES = ["Bench Press", "Squat", "Deadlift", "Pull-ups", "Overhead Press", "Rows", "Lunges", "Plank"];
 
+const WORKOUT_TYPES = [
+  { value:"strength",     label:"💪 Strength"     },
+  { value:"cardio",       label:"🏃 Cardio"        },
+  { value:"yoga",         label:"🧘 Yoga"          },
+  { value:"hiit",         label:"⚡ HIIT"          },
+  { value:"powerlifting", label:"🏋️ Powerlifting" },
+  { value:"general",      label:"🎯 General"       },
+];
+
+const CATEGORY_ICONS = { supplement:"💊", meal:"🥗", equipment:"🏋️", apparel:"👕", other:"📦" };
+
 const emptyExercise = () => ({ name: "", sets: "", reps: "", weight: "" });
 
 export default function WorkoutLogger() {
@@ -13,6 +24,9 @@ export default function WorkoutLogger() {
   const [exercises, setExercises] = useState([emptyExercise()]);
   const [msg, setMsg] = useState({ type: "", text: "" });
   const [loading, setLoading] = useState(false);
+  const [workoutType, setWorkoutType] = useState("strength");
+  const [suggestedProducts, setSuggestedProducts] = useState([]);
+  const [pointsAwarded, setPointsAwarded] = useState(0);
 
   const updateEx = (i, field, val) => {
     setExercises(prev => prev.map((ex, idx) => idx === i ? { ...ex, [field]: val } : ex));
@@ -35,16 +49,23 @@ export default function WorkoutLogger() {
           weight: Number(ex.weight) || 0,
         }));
 
-      await api.post("/workouts/logs", {
+      const res = await api.post("/workouts/logs", {
         weight: Number(weight),
         notes,
         completedExercises,
       }, { headers: { Authorization: `Bearer ${token}` } });
 
+      setPointsAwarded(res.data.pointsAwarded || 10);
       setMsg({ type: "success", text: "Workout logged successfully! 🔥" });
       setWeight("");
       setNotes("");
       setExercises([emptyExercise()]);
+
+      // Fetch nutrition suggestions based on workout type
+      try {
+        const recRes = await api.get(`/marketplace/recommend-by-workout/${workoutType}`);
+        setSuggestedProducts(recRes.data.products || []);
+      } catch { setSuggestedProducts([]); }
     } catch (e) {
       setMsg({ type: "error", text: e?.response?.data?.message || "Could not save log." });
     } finally {
@@ -63,6 +84,23 @@ export default function WorkoutLogger() {
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+
+        {/* Workout Type */}
+        <div className="form-group">
+          <label className="form-label">Workout Type</label>
+          <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
+            {WORKOUT_TYPES.map(t => (
+              <button key={t.value} onClick={() => setWorkoutType(t.value)}
+                style={{ padding:"6px 14px", borderRadius:"20px", fontSize:"12px", fontWeight:700,
+                  cursor:"pointer", border:`2px solid ${workoutType===t.value ? "var(--accent)" : "var(--border)"}`,
+                  background: workoutType===t.value ? "rgba(0,112,243,0.1)" : "var(--bg3)",
+                  color: workoutType===t.value ? "var(--accent)" : "var(--text3)" }}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Body Weight */}
         <div className="form-group">
           <label className="form-label">Current Weight (kg)</label>
@@ -142,6 +180,64 @@ export default function WorkoutLogger() {
         <button className="btn btn-accent btn-full" onClick={save} disabled={loading}>
           {loading ? <><span className="spinner" style={{borderTopColor:"#fff"}}></span> Saving…</> : "💾 Save Workout Log"}
         </button>
+
+        {/* Points awarded + product suggestions shown after successful log */}
+        {msg.type === "success" && (
+          <div>
+            {/* Points notification */}
+            <div style={{ display:"flex", alignItems:"center", gap:"12px", padding:"14px 16px",
+              background:"rgba(245,158,11,0.1)", border:"1px solid rgba(245,158,11,0.3)",
+              borderRadius:"12px", marginBottom:"16px" }}>
+              <span style={{ fontSize:"28px" }}>⚡</span>
+              <div>
+                <div style={{ fontWeight:700, color:"var(--gold)", fontSize:"15px" }}>
+                  +{pointsAwarded} FlexPoints Earned!
+                </div>
+                <div style={{ fontSize:"12px", color:"var(--text3)" }}>
+                  Keep going — points unlock rewards and discounts.
+                </div>
+              </div>
+            </div>
+
+            {/* Product suggestions */}
+            {suggestedProducts.length > 0 && (
+              <div style={{ background:"var(--bg3)", border:"1px solid var(--border)",
+                borderRadius:"12px", padding:"16px" }}>
+                <div style={{ fontWeight:700, fontSize:"14px", marginBottom:"12px" }}>
+                  🥗 Recommended for your {workoutType} session:
+                </div>
+                <div style={{ display:"flex", gap:"10px", overflowX:"auto", paddingBottom:"4px" }}>
+                  {suggestedProducts.map(p => (
+                    <div key={p._id} style={{ minWidth:"160px", background:"var(--bg2)",
+                      border:"1px solid var(--border)", borderRadius:"10px", overflow:"hidden",
+                      flexShrink:0 }}>
+                      <div style={{ height:"90px", background:"var(--bg3)", display:"flex",
+                        alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
+                        {p.imageUrl
+                          ? <img src={p.imageUrl} alt={p.name} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                          : <span style={{ fontSize:"32px" }}>{CATEGORY_ICONS[p.category]||"📦"}</span>}
+                      </div>
+                      <div style={{ padding:"10px" }}>
+                        <div style={{ fontWeight:700, fontSize:"12px", marginBottom:"3px",
+                          overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                          {p.name}
+                        </div>
+                        <div style={{ fontSize:"11px", color:"var(--text3)", marginBottom:"6px" }}>
+                          {p.vendor?.businessName}
+                        </div>
+                        <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:"18px",
+                          color:"var(--accent)" }}>₹{p.price}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize:"11px", color:"var(--text3)", marginTop:"8px" }}>
+                  💡 Visit the Marketplace to order these products
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

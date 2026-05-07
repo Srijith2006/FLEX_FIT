@@ -25,6 +25,7 @@ const productSchema = new mongoose.Schema({
   avgRating:    { type: Number, default: 0 },
   totalRatings: { type: Number, default: 0 },
   totalSold:    { type: Number, default: 0 },
+  tags:         [{ type: String }],  // e.g. "high-protein","recovery","stamina","weight-loss"
 }, { timestamps: true });
 
 export default mongoose.model("Product", productSchema);

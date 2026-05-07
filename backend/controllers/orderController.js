@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import Razorpay from "razorpay";
-import { Client, Product, Order, Vendor, WorkoutCompletion } from "../models/index.js";
+import { Client, Product, Order, Vendor, WorkoutCompletion, User } from "../models/index.js";
 
 const getRazorpay = () => {
   const key_id = process.env.RAZORPAY_KEY_ID;
@@ -252,8 +252,19 @@ export const updateOrderStatus = async (req, res, next) => {
       { _id: req.params.orderId, vendor: vendor._id },
       { status },
       { new: true }
-    );
+    ).populate({ path: "client", populate: { path: "user", select: "_id" } });
     if (!order) return res.status(404).json({ message: "Order not found" });
+
+    // Award FlexPoints on delivery — 1 point per ₹10 spent
+    if (status === "delivered" && order.isPaid) {
+      const pointsEarned = Math.floor(order.total / 10);
+      if (pointsEarned > 0 && order.client?.user?._id) {
+        await User.findByIdAndUpdate(order.client.user._id, {
+          $inc: { flexPoints: pointsEarned, lifetimePoints: pointsEarned },
+        });
+      }
+    }
+
     res.json({ order });
   } catch (error) { next(error); }
 };

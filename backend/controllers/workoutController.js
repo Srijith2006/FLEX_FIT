@@ -1,4 +1,5 @@
-﻿import { Client, WorkoutProgram, WorkoutLog, DietPlan } from "../models/index.js";
+﻿import { Client, WorkoutProgram, WorkoutLog, DietPlan, User } from "../models/index.js";
+import { checkMilestones } from "../utils/milestones.js";
 
 export const createProgram = async (req, res, next) => {
   try {
@@ -52,7 +53,15 @@ export const logWorkout = async (req, res, next) => {
       await client.save();
     }
 
-    res.status(201).json({ log });
+    // Award 10 FlexPoints for logging a workout
+    await User.findByIdAndUpdate(req.user._id, {
+      $inc: { flexPoints: 10, lifetimePoints: 10 },
+    });
+
+    // Check if any milestones unlocked (non-blocking)
+    checkMilestones(req.user._id).catch(() => {});
+
+    res.status(201).json({ log, pointsAwarded: 10 });
   } catch (error) {
     next(error);
   }

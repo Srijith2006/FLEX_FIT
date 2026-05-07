@@ -9,6 +9,8 @@ const userSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
   phone:    { type: String, default: "" },
   pushSubscription: { type: mongoose.Schema.Types.Mixed, default: null },
+  flexPoints:     { type: Number, default: 0 },
+  lifetimePoints: { type: Number, default: 0 },
 }, { timestamps: true });
 
 export default mongoose.model("User", userSchema);

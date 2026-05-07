@@ -10,8 +10,6 @@ import TrainerBrowse        from "../components/client/TrainerBrowse.jsx";
 import WorkoutLogger        from "../components/client/WorkoutLogger.jsx";
 import ProgressTracker      from "../components/client/ProgressTracker.jsx";
 import ClientProfile        from "../components/client/ClientProfile.jsx";
-import ClientDietLog        from "../components/client/ClientDietLog.jsx";
-import ProofOfWork          from "../components/client/ProofOfWork.jsx";
 
 // Trainer components
 import TrainerOverview       from "../components/trainer/TrainerOverview.jsx";
@@ -20,12 +18,14 @@ import TrainerProgramManager from "../components/trainer/TrainerProgramManager.j
 import TrainerProgramBuilder from "../components/trainer/TrainerProgramBuilder.jsx";
 import LiveSessionManager    from "../components/trainer/LiveSessionManager.jsx";
 import VerificationStatus    from "../components/trainer/VerificationStatus.jsx";
-import TrainerRecommendProducts from "../components/trainer/TrainerRecommendProducts.jsx";
 import TrainerDietPlanBuilder from "../components/trainer/TrainerDietPlanBuilder.jsx";
-import ClientProofFeed        from "../components/trainer/ClientProofFeed.jsx";
+import ClientProofFeed       from "../components/trainer/ClientProofFeed.jsx";
 
 // Shared & Specialized
 import Inbox                 from "../components/common/Inbox.jsx";
+import ClientDietLog         from "../components/client/ClientDietLog.jsx";
+import ProofOfWork           from "../components/client/ProofOfWork.jsx";
+import MyRewards             from "../components/client/MyRewards.jsx";
 import GroupChatList         from "../components/common/GroupChatList.jsx";
 import AdminDashboard        from "../components/admin/AdminDashboard.jsx";
 import VendorDashboard       from "../components/Vendor/VendorDashboard.jsx";
@@ -35,14 +35,14 @@ const CLIENT_TABS = [
   { id: "myprograms",  icon: "📚", label: "My Programs"      },
   { id: "marketplace", icon: "🏪", label: "Browse Programs"  },
   { id: "trainers",    icon: "🔍", label: "Find Trainers"    },
-  { id: "workouts",    icon: "🏋️", label: "Log Workout"      },
-  { id: "proof",       icon: "📸", label: "Workout Proofs"    },
+  { id: "workouts",    icon: "🏋️", label: "Log Workout"     },
   { id: "progress",    icon: "📈", label: "Progress"         },
   { id: "groupchat",   icon: "👥", label: "Group Chats"      },
   { id: "messages",    icon: "💬", label: "Messages"         },
   { id: "dietplan",    icon: "🥗", label: "My Diet Plan"     },
+  { id: "proof",       icon: "📸", label: "Proof of Work"   },
+  { id: "rewards",     icon: "⚡", label: "My Rewards"      },
   { id: "profile",     icon: "👤", label: "Profile"          },
-  
 ];
 
 const TRAINER_TABS = [
@@ -52,12 +52,10 @@ const TRAINER_TABS = [
   { id: "sessions",     icon: "🎥", label: "Live Sessions"    },
   { id: "groupchat",    icon: "👥", label: "Group Chats"      },
   { id: "messages",     icon: "💬", label: "Messages"         },
-  { id: "clientproof",        icon: "📸", label: "Review Queue"    },
   { id: "verification", icon: "✅", label: "Verification"     },
   { id: "dietplan",     icon: "🥗", label: "Diet Plans"       },
-  { id: "recommend",    icon: "⭐", label: "Recommend Products" },
-  { id: "profile",      icon: "👤", label: "My Profile"       },
-  
+  { id: "clientproofs", icon: "📸", label: "Client Proofs"    },
+  { id: "profile",      icon: "👤", label: "Profile"       },
 ];
 
 // RECTIFICATION: Added dedicated Vendor tabs
@@ -112,7 +110,8 @@ export default function Dashboard() {
       if (activeTab === "messages")    return <Inbox />;
       if (activeTab === "profile")     return <ClientProfile />;
       if (activeTab === "dietplan")    return <ClientDietLog />;
-      if (activeTab === "proof")       return <ProofOfWork />;
+      if (activeTab === "proof")        return <ProofOfWork />;
+      if (activeTab === "rewards")      return <MyRewards />;
     }
 
     if (user?.role === "trainer") {
@@ -124,9 +123,8 @@ export default function Dashboard() {
       if (activeTab === "messages")     return <Inbox />;
       if (activeTab === "verification") return <VerificationStatus />;
       if (activeTab === "profile")      return <TrainerProfileView />;
-      if (activeTab === "recommend")    return <TrainerRecommendProducts />;
       if (activeTab === "dietplan")     return <TrainerDietPlanBuilder />;
-      if (activeTab === "clientproof")  return <ClientProofFeed />;
+      if (activeTab === "clientproofs") return <ClientProofFeed />;
     }
 
     return null;

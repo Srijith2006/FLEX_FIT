@@ -10,11 +10,12 @@ export default function ClientOverview() {
   useEffect(() => {
     (async () => {
       try {
-        const [profileRes, logsRes, enrollRes, dietRes] = await Promise.all([
+        const [profileRes, logsRes, enrollRes, dietRes, pointsRes] = await Promise.all([
           api.get("/clients/me",          { headers: { Authorization: `Bearer ${token}` } }),
           api.get("/workouts/logs/mine",   { headers: { Authorization: `Bearer ${token}` } }),
           api.get("/programs/enrolled",    { headers: { Authorization: `Bearer ${token}` } }),
           api.get("/diet-plans/client-plans", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { plans: [] } })),
+          api.get("/rewards/points", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { flexPoints: 0, lifetimePoints: 0 } })),
         ]);
 
         const client      = profileRes.data.client;
@@ -53,6 +54,8 @@ export default function ClientOverview() {
           enrollments,
           profileComplete: !!(client.age && client.gender && client.height && client.currentWeight),
           dietPlans: dietRes.data.plans || [],
+          flexPoints: pointsRes.data.flexPoints || 0,
+          lifetimePoints: pointsRes.data.lifetimePoints || 0,
         });
       } catch {} finally { setLoading(false); }
     })();
@@ -114,6 +117,30 @@ export default function ClientOverview() {
             {stats.activePrograms}
           </div>
           <div className="stat-card-label">active programs</div>
+        </div>
+      </div>
+
+      {/* FlexPoints Balance Card */}
+      <div style={{ background:"linear-gradient(135deg, rgba(245,158,11,0.15), rgba(0,112,243,0.1))",
+        border:"1px solid rgba(245,158,11,0.3)", borderRadius:"var(--radius)", padding:"20px",
+        display:"flex", alignItems:"center", gap:"20px" }}>
+        <div style={{ fontSize:"48px", lineHeight:1 }}>⚡</div>
+        <div style={{ flex:1 }}>
+          <div style={{ fontSize:"12px", fontWeight:700, color:"var(--text3)", textTransform:"uppercase",
+            letterSpacing:"0.5px", marginBottom:"4px" }}>FlexPoints Balance</div>
+          <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:"42px", color:"var(--gold)",
+            lineHeight:1 }}>{stats.flexPoints.toLocaleString()}</div>
+          <div style={{ fontSize:"12px", color:"var(--text3)", marginTop:"4px" }}>
+            {stats.lifetimePoints.toLocaleString()} lifetime points earned
+          </div>
+        </div>
+        <div style={{ textAlign:"right" }}>
+          <div style={{ fontSize:"12px", color:"var(--text2)", marginBottom:"4px" }}>How to earn:</div>
+          <div style={{ fontSize:"11px", color:"var(--text3)" }}>+10 per workout logged</div>
+          <div style={{ fontSize:"11px", color:"var(--text3)" }}>+1 per ₹10 spent</div>
+          <div style={{ fontSize:"11px", color:"var(--green)", marginTop:"6px", fontWeight:700 }}>
+            Check Rewards for coupons →
+          </div>
         </div>
       </div>
 
