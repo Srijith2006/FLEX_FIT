@@ -119,21 +119,9 @@ function ProductCard({ product, onBuy, onRate, userRatings }) {
       onMouseEnter={e => { e.currentTarget.style.borderColor="var(--border2)"; e.currentTarget.style.transform="translateY(-3px)"; e.currentTarget.style.boxShadow="0 8px 32px rgba(0,0,0,0.4)"; }}
       onMouseLeave={e => { e.currentTarget.style.borderColor="var(--border)";  e.currentTarget.style.transform="none"; e.currentTarget.style.boxShadow="none"; }}
     >
-      {/* Visual — show product image if available, else category emoji */}
-      <div style={{ height:"200px", background:"linear-gradient(135deg,var(--bg3),var(--surface2))", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"48px", position:"relative", flexShrink:0, overflow:"hidden" }}>
-        {product.imageUrl ? (
-          <img
-            src={product.imageUrl}
-            alt={product.name}
-            referrerPolicy="no-referrer"
-            style={{ width:"100%", height:"100%", objectFit:"contain", objectPosition:"center", display:"block", padding:"8px" }}
-            onError={e => { e.target.style.display="none"; e.target.nextSibling.style.display="flex"; }}
-          />
-        ) : null}
-        <div style={{ display: product.imageUrl ? "none" : "flex", width:"100%", height:"100%",
-          alignItems:"center", justifyContent:"center", fontSize:"48px" }}>
-          {CAT_ICON[product.category]||"📦"}
-        </div>
+      {/* Visual */}
+      <div style={{ height:"100px", background:"linear-gradient(135deg,var(--bg3),var(--surface2))", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"48px", position:"relative", flexShrink:0 }}>
+        {CAT_ICON[product.category]||"📦"}
         {discount > 0 && <div style={{ position:"absolute", top:"8px", left:"8px", background:"var(--red)", color:"#fff", fontSize:"10px", fontWeight:700, padding:"2px 8px", borderRadius:"10px" }}>-{discount}%</div>}
         {groupReady && <div style={{ position:"absolute", top:"8px", right:"8px", background:"var(--green)", color:"#fff", fontSize:"10px", fontWeight:700, padding:"2px 8px", borderRadius:"10px" }}>🎉 GROUP DEAL</div>}
       </div>
@@ -261,13 +249,8 @@ function TrainerRecommendedSection({ token, onBuy }) {
             <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
               {group.items.map(rec => (
                 <div key={rec._id} style={{ display:"flex", gap:"14px", alignItems:"center", padding:"12px 14px", background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:"var(--radius)" }}>
-                  <div style={{ width:"52px", height:"52px", borderRadius:"12px", background:"linear-gradient(135deg,var(--bg2),var(--surface2))", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"22px", flexShrink:0, overflow:"hidden" }}>
-                    {rec.product?.imageUrl
-                      ? <img src={rec.product.imageUrl} alt={rec.product?.name} referrerPolicy="no-referrer"
-                          style={{ width:"100%", height:"100%", objectFit:"cover" }}
-                          onError={e => { e.target.style.display="none"; e.target.nextSibling.style.display="flex"; }} />
-                      : null}
-                    <span style={{ display: rec.product?.imageUrl ? "none" : "flex" }}>{CAT_ICON[rec.product?.category]||"📦"}</span>
+                  <div style={{ width:"44px", height:"44px", borderRadius:"12px", background:"linear-gradient(135deg,var(--bg2),var(--surface2))", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"22px", flexShrink:0 }}>
+                    {CAT_ICON[rec.product?.category]||"📦"}
                   </div>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontWeight:700, fontSize:"14px" }}>{rec.product?.name}</div>
@@ -303,12 +286,10 @@ function TrainerRecommendedSection({ token, onBuy }) {
 
 // ── My Orders with Complete Payment ──────────────────────────────────────────
 function MyOrders({ token, user }) {
-  const [orders, setOrders]           = useState([]);
-  const [loading, setLoading]         = useState(true);
-  const [retrying, setRetrying]       = useState(null);
-  const [cancelModal, setCancelModal] = useState(null);
-  const [cancelling, setCancelling]   = useState(false);
-  const [msg, setMsg]                 = useState({ type:"", text:"" });
+  const [orders, setOrders]   = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [retrying, setRetrying] = useState(null);
+  const [msg, setMsg] = useState({ type:"", text:"" });
 
   const load = () => {
     api.get("/orders/mine", { headers:{ Authorization:`Bearer ${token}` } })
@@ -363,22 +344,6 @@ function MyOrders({ token, user }) {
     }
   };
 
-  const confirmCancel = async (reason) => {
-    if (!cancelModal) return;
-    setCancelling(true);
-    try {
-      await api.post(`/orders/${cancelModal._id}/cancel`, { reason }, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setMsg({ type:"success", text:"Order cancelled successfully." });
-      setCancelModal(null);
-      load();
-    } catch(e) {
-      setMsg({ type:"error", text: e?.response?.data?.message || "Could not cancel order." });
-    } finally { setCancelling(false); }
-  };
-
-  const canCancel = (status) => ["pending","confirmed","preparing"].includes(status);
   const STATUS_COLORS = { pending:"var(--gold)", confirmed:"var(--accent2)", preparing:"var(--accent)", shipped:"var(--accent3)", delivered:"var(--green)", cancelled:"var(--red)" };
   const STATUS_ICONS  = { pending:"⏳", confirmed:"✅", preparing:"👨‍🍳", shipped:"🚚", delivered:"📦", cancelled:"✕" };
 
@@ -472,59 +437,13 @@ function MyOrders({ token, user }) {
             </div>
           )}
 
-          {/* Cancelled — show reason */}
-          {o.status === "cancelled" && (
-            <div style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.2)",
-              borderRadius:"8px", padding:"10px 14px" }}>
-              <div style={{ fontSize:"12px", fontWeight:700, color:"var(--red)" }}>✕ Order Cancelled</div>
-              {o.cancellationReason && (
-                <div style={{ fontSize:"12px", color:"var(--text2)", marginTop:"3px" }}>
-                  Reason: {o.cancellationReason}
-                </div>
-              )}
-            </div>
-          )}
-
           {o.status === "delivered" && (
             <div style={{ fontSize:"12px", color:"var(--green)", fontWeight:700, textAlign:"center" }}>
               ✓ Order Delivered Successfully
             </div>
           )}
-
-          {/* Cancel button — shown for pending unpaid, and paid but not yet shipped */}
-          {o.status === "pending" && !o.isPaid && (
-            <div style={{ display:"flex", justifyContent:"flex-end", marginTop:"8px" }}>
-              <button className="btn btn-sm btn-outline"
-                style={{ color:"var(--red)", borderColor:"rgba(239,68,68,0.5)", fontSize:"12px" }}
-                onClick={() => setCancelModal(o)}
-                disabled={cancelling}>
-                ✕ Cancel Order
-              </button>
-            </div>
-          )}
-
-          {canCancel(o.status) && o.isPaid && (
-            <div style={{ display:"flex", justifyContent:"flex-end", marginTop:"8px" }}>
-              <button className="btn btn-sm btn-outline"
-                style={{ color:"var(--red)", borderColor:"rgba(239,68,68,0.5)", fontSize:"12px" }}
-                onClick={() => setCancelModal(o)}
-                disabled={cancelling}>
-                ✕ Cancel Order
-              </button>
-            </div>
-          )}
         </div>
       ))}
-
-      {/* Cancel Modal */}
-      {cancelModal && (
-        <CancelModal
-          order={cancelModal}
-          onConfirm={confirmCancel}
-          onClose={() => setCancelModal(null)}
-          cancelling={cancelling}
-        />
-      )}
     </div>
   );
 }
