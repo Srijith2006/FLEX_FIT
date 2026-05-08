@@ -282,38 +282,18 @@ function OverviewTab({ vendor, orders, products, onTabChange }) {
 // ── Product Form Modal ─────────────────────────────────────────────────────────
 function ProductFormModal({ initial, onSave, onClose, saving, token }) {
   const [form, setForm] = useState(initial || EMPTY_PRODUCT);
-  const [uploading, setUploading] = useState(false);
-  const [preview, setPreview] = useState(initial?.imageUrl || "");
-  const [uploadError, setUploadError] = useState("");
+  const [imgLoaded, setImgLoaded] = useState(!!initial?.imageUrl);
+  const [imgError, setImgError]   = useState(false);
   const h = (f) => (e) => setForm(p => ({ ...p, [f]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
 
   const labelStyle = { fontSize:"11px", fontWeight:700, color:"var(--text3)", textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:"5px", display:"block" };
   const inputStyle = { width:"100%", background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:"8px", padding:"9px 12px", color:"var(--text)", fontSize:"13px", outline:"none", boxSizing:"border-box" };
 
-  const handleImageFile = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setUploadError("");
-    const localUrl = URL.createObjectURL(file);
-    setPreview(localUrl);
-    setUploading(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await api.post("/uploads", fd, { headers: { Authorization: `Bearer ${token}` } });
-      const serverUrl = res.data.fileUrl;
-      setForm(p => ({ ...p, imageUrl: serverUrl }));
-      setPreview(serverUrl);
-    } catch (err) {
-      setUploadError("Upload failed: " + (err?.response?.data?.message || err.message || "Unknown error"));
-    } finally { setUploading(false); }
-  };
-
   const handleUrlChange = (e) => {
     const val = e.target.value;
     setForm(p => ({ ...p, imageUrl: val }));
-    setPreview(val);
-    setUploadError("");
+    setImgLoaded(false);
+    setImgError(false);
   };
 
   return (
@@ -324,55 +304,55 @@ function ProductFormModal({ initial, onSave, onClose, saving, token }) {
           <button onClick={onClose} style={{ background:"none", border:"none", fontSize:"20px", cursor:"pointer", color:"var(--text3)" }}>✕</button>
         </div>
 
-        {/* Image */}
+        {/* Image — URL only, no file upload */}
         <div style={{ marginBottom:"20px" }}>
-          <label style={labelStyle}>Product Image</label>
-          <div style={{ marginBottom:"12px", borderRadius:"10px", overflow:"hidden", height:"180px",
-            background:"var(--bg3)", border:"1px dashed var(--border)",
+          <label style={labelStyle}>Product Image URL</label>
+
+          {/* Live preview */}
+          <div style={{ marginBottom:"10px", borderRadius:"10px", overflow:"hidden", height:"180px",
+            background:"var(--bg3)", border:`1px dashed ${imgLoaded ? "var(--accent)" : "var(--border)"}`,
             display:"flex", alignItems:"center", justifyContent:"center", position:"relative" }}>
-            {preview ? (
-              <>
-                <img src={preview} alt="preview" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}
-                  onError={e => { e.target.style.display="none"; e.target.nextSibling.style.display="flex"; }} />
-                <div style={{ display:"none", flexDirection:"column", alignItems:"center", justifyContent:"center",
-                  width:"100%", height:"100%", position:"absolute", inset:0, color:"var(--text3)" }}>
-                  <div style={{ fontSize:"36px", marginBottom:"6px" }}>{CATEGORY_ICONS[form.category] || "📦"}</div>
-                  <div style={{ fontSize:"11px" }}>Could not load preview — image will still be saved</div>
-                </div>
-              </>
+            {form.imageUrl && !imgError ? (
+              <img
+                src={form.imageUrl}
+                alt="preview"
+                referrerPolicy="no-referrer"
+                crossOrigin="anonymous"
+                style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}
+                onLoad={() => { setImgLoaded(true); setImgError(false); }}
+                onError={() => { setImgLoaded(false); setImgError(true); }}
+              />
             ) : (
-              <div style={{ textAlign:"center", color:"var(--text3)" }}>
+              <div style={{ textAlign:"center", color:"var(--text3)", padding:"16px" }}>
                 <div style={{ fontSize:"36px", marginBottom:"6px" }}>{CATEGORY_ICONS[form.category] || "📦"}</div>
-                <div style={{ fontSize:"12px" }}>No image selected</div>
+                <div style={{ fontSize:"12px" }}>
+                  {imgError ? "Cannot preview this URL — but it will still be saved and may show in marketplace" : "Paste an image URL below to preview"}
+                </div>
               </div>
             )}
-            {uploading && (
-              <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0.7)",
-                display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"8px", color:"#fff" }}>
-                <div className="spinner" style={{ borderTopColor:"#fff", width:"24px", height:"24px" }} />
-                <span style={{ fontSize:"13px", fontWeight:600 }}>Uploading to Cloudinary…</span>
+            {imgLoaded && (
+              <div style={{ position:"absolute", top:"8px", right:"8px", background:"rgba(16,185,129,0.9)",
+                borderRadius:"20px", padding:"3px 10px", fontSize:"11px", fontWeight:700, color:"#fff" }}>
+                ✓ Preview loaded
               </div>
             )}
           </div>
-          <label style={{ cursor:"pointer", display:"block" }}>
-            <div style={{ ...inputStyle, display:"flex", alignItems:"center", gap:"8px",
-              cursor:"pointer", background:"var(--bg3)", border:"1px dashed var(--border)" }}>
-              <span style={{ fontSize:"18px" }}>🖼</span>
-              <span style={{ color:"var(--text2)", fontSize:"13px" }}>
-                {uploading ? "Uploading..." : "Choose image from your laptop"}
-              </span>
-            </div>
-            <input type="file" accept="image/*" onChange={handleImageFile} disabled={uploading} style={{ display:"none" }} />
-          </label>
-          <div style={{ display:"flex", alignItems:"center", gap:"8px", margin:"10px 0" }}>
-            <div style={{ flex:1, height:"1px", background:"var(--border)" }} />
-            <span style={{ fontSize:"11px", color:"var(--text3)" }}>OR paste a URL</span>
-            <div style={{ flex:1, height:"1px", background:"var(--border)" }} />
+
+          {/* URL input */}
+          <input style={inputStyle}
+            placeholder="Paste image URL — e.g. https://i.imgur.com/abc.jpg or right-click image → Copy image address"
+            value={form.imageUrl}
+            onChange={handleUrlChange} />
+
+          <div style={{ marginTop:"6px", fontSize:"11px", color:"var(--text3)" }}>
+            💡 Right-click any image on Google Images → <b>Copy image address</b> → paste above
           </div>
-          <input style={inputStyle} placeholder="https://res.cloudinary.com/... or https://i.imgur.com/..."
-            value={form.imageUrl} onChange={handleUrlChange} />
-          {uploadError && <div style={{ marginTop:"6px", fontSize:"12px", color:"var(--gold)", padding:"6px 10px", background:"rgba(245,158,11,0.1)", borderRadius:"6px" }}>⚠ {uploadError}</div>}
-          {form.imageUrl && !uploading && !uploadError && <div style={{ marginTop:"6px", fontSize:"12px", color:"var(--green)" }}>✓ Image URL saved</div>}
+          {form.imageUrl && imgLoaded && (
+            <div style={{ marginTop:"4px", fontSize:"12px", color:"var(--green)", fontWeight:600 }}>✓ Image looks good!</div>
+          )}
+          {form.imageUrl && imgError && (
+            <div style={{ marginTop:"4px", fontSize:"12px", color:"var(--gold)" }}>⚠ Preview blocked by source site — URL saved, will try to display in marketplace</div>
+          )}
         </div>
 
         {/* Basic info */}
