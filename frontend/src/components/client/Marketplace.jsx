@@ -303,10 +303,12 @@ function TrainerRecommendedSection({ token, onBuy }) {
 
 // ── My Orders with Complete Payment ──────────────────────────────────────────
 function MyOrders({ token, user }) {
-  const [orders, setOrders]   = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [retrying, setRetrying] = useState(null);
-  const [msg, setMsg] = useState({ type:"", text:"" });
+  const [orders, setOrders]           = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [retrying, setRetrying]       = useState(null);
+  const [cancelModal, setCancelModal] = useState(null);
+  const [cancelling, setCancelling]   = useState(false);
+  const [msg, setMsg]                 = useState({ type:"", text:"" });
 
   const load = () => {
     api.get("/orders/mine", { headers:{ Authorization:`Bearer ${token}` } })
