@@ -40,6 +40,7 @@ const CLIENT_TABS = [
   { id: "groupchat",   icon: "👥", label: "Group Chats"      },
   { id: "messages",    icon: "💬", label: "Messages"         },
   { id: "dietplan",    icon: "🥗", label: "My Diet Plan"     },
+  { id: "leaderboard", icon: "🏆", label: "Leaderboard"     },
   { id: "proof",       icon: "📸", label: "Proof of Work"   },
   { id: "rewards",     icon: "⚡", label: "My Rewards"      },
   { id: "profile",     icon: "👤", label: "Profile"          },
@@ -54,6 +55,7 @@ const TRAINER_TABS = [
   { id: "messages",     icon: "💬", label: "Messages"         },
   { id: "verification", icon: "✅", label: "Verification"     },
   { id: "dietplan",     icon: "🥗", label: "Diet Plans"       },
+  { id: "leaderboard",  icon: "🏆", label: "Leaderboard"     },
   { id: "clientproofs", icon: "📸", label: "Client Proofs"    },
   { id: "profile",      icon: "👤", label: "Profile"       },
 ];
@@ -112,6 +114,7 @@ export default function Dashboard() {
       if (activeTab === "dietplan")    return <ClientDietLog />;
       if (activeTab === "proof")        return <ProofOfWork />;
       if (activeTab === "rewards")      return <MyRewards />;
+      if (activeTab === "leaderboard") return <Leaderboard />;
     }
 
     if (user?.role === "trainer") {
@@ -125,6 +128,7 @@ export default function Dashboard() {
       if (activeTab === "profile")      return <TrainerProfileView />;
       if (activeTab === "dietplan")     return <TrainerDietPlanBuilder />;
       if (activeTab === "clientproofs") return <ClientProofFeed />;
+      if (activeTab === "leaderboard") return <Leaderboard />;
     }
 
     return null;

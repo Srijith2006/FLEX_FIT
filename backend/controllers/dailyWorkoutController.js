@@ -1,3 +1,4 @@
+import { awardPoints } from "./leaderboardController.js";
 import { DailyWorkout, WorkoutCompletion, Trainer, Client, Enrollment, Program } from "../models/index.js";
 
 // ─── TRAINER ──────────────────────────────────────────────────────────────────
@@ -146,6 +147,8 @@ export const completeWorkout = async (req, res, next) => {
       await Client.findByIdAndUpdate(client._id, { currentWeight: Number(bodyWeight) });
     }
 
+    // Award FlexPoints for completing a workout
+    await awardPoints(req.user._id, 10, "workout_complete");
     res.status(201).json({ completion });
   } catch (error) { next(error); }
 };
