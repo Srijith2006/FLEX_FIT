@@ -126,7 +126,7 @@ function ProductCard({ product, onBuy, onRate, userRatings }) {
             src={product.imageUrl}
             alt={product.name}
             referrerPolicy="no-referrer"
-            style={{ width:"100%", height:"100%", objectFit:"cover", objectPosition:"center", display:"block" }}
+            style={{ width:"100%", height:"100%", objectFit:"contain", objectPosition:"center", display:"block", padding:"8px" }}
             onError={e => { e.target.style.display="none"; e.target.nextSibling.style.display="flex"; }}
           />
         ) : null}
