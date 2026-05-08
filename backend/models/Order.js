@@ -27,7 +27,7 @@ const orderSchema = new mongoose.Schema({
   streakDays:      { type: Number, default: 0 },
   // Cancellation fields
   cancellationReason: { type: String, default: "" },
-  cancelledBy:        { type: String, enum: ["client","vendor","admin",""], default: "" },
+  cancelledBy:        { type: String, enum: ["client","vendor","admin","trainer",""], default: "" },
   cancelledAt:        { type: Date, default: null },
 }, { timestamps: true });
 

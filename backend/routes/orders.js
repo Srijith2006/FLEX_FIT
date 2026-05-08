@@ -2,6 +2,7 @@ import express from "express";
 import {
   createOrder, verifyOrderPayment, myOrders,
   vendorOrders, updateOrderStatus, retryOrderPayment,
+  cancelOrder,
 } from "../controllers/orderController.js";
 import { protect, authorize } from "../middleware/auth.js";
 
@@ -11,6 +12,7 @@ router.post("/",                    protect, authorize("client"), createOrder);
 router.post("/verify",              protect, authorize("client"), verifyOrderPayment);
 router.get("/mine",                 protect, authorize("client"), myOrders);
 router.post("/:orderId/retry",      protect, authorize("client"), retryOrderPayment);
+router.patch("/:orderId/cancel",    protect, authorize("client"), cancelOrder);
 router.get("/vendor",               protect, authorize("vendor"), vendorOrders);
 router.patch("/:orderId/status",    protect, authorize("vendor","admin"), updateOrderStatus);
 

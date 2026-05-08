@@ -269,29 +269,41 @@ export const updateOrderStatus = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-// ── Client — cancel order (only before shipped/delivered) ─────────────────────
-export const cancelOrder = async (req, res, next) => {
+// ── Add this function to your existing orderController.js ────────────────────
+
+export const cancelOrder = async (req, res) => {
   try {
-    const client = await Client.findOne({ user: req.user._id });
-    if (!client) return res.status(404).json({ message: "Client not found" });
-
-    const order = await Order.findOne({ _id: req.params.orderId, client: client._id });
-    if (!order) return res.status(404).json({ message: "Order not found" });
-
-    // Only allow cancel before shipped or delivered
-    const nonCancellable = ["shipped", "delivered", "cancelled"];
-    if (nonCancellable.includes(order.status))
-      return res.status(400).json({ message: `Cannot cancel an order that is already ${order.status}.` });
-
     const { reason } = req.body;
-    if (!reason?.trim()) return res.status(400).json({ message: "Cancellation reason is required." });
 
-    order.status = "cancelled";
-    order.cancellationReason = reason.trim();
-    order.cancelledBy = "client";
-    order.cancelledAt = new Date();
+    const order = await Order.findById(req.params.orderId);
+    if (!order) {
+      return res.status(404).json({ message: "Order not found." });
+    }
+
+    // Ownership check — order.client must match logged-in client
+    if (String(order.client) !== String(req.user._id)) {
+      return res.status(403).json({ message: "You are not authorised to cancel this order." });
+    }
+
+    // Only allow cancel before shipped
+    const cancellableStatuses = ["pending", "confirmed", "preparing"];
+    if (!cancellableStatuses.includes(order.status)) {
+      return res.status(400).json({
+        message: `Order cannot be cancelled once it is ${order.status}.`,
+      });
+    }
+
+    order.status             = "cancelled";
+    order.cancellationReason = reason?.trim() || "No reason provided";
+    order.cancelledBy        = "client";
+    order.cancelledAt        = new Date();
+
     await order.save();
 
-    res.json({ message: "Order cancelled successfully.", order });
-  } catch (error) { next(error); }
+    return res.json({ message: "Order cancelled successfully.", order });
+
+  } catch (err) {
+    console.error("cancelOrder error:", err);
+    return res.status(500).json({ message: "Server error. Please try again." });
+  }
 };
