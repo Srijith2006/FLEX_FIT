@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import api from "../../services/api.js";
 import useAuth from "../../hooks/useAuth.js";
 
@@ -41,7 +41,7 @@ function OrderCard({ order, onStatusUpdate }) {
     finally { setUpdating(false); }
   };
   return (
-    <div style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:"var(--radius)", padding:"16px" }}>
+    <div style={{ background:"var(--bg3)", border:`1px solid ${order.status === "cancelled" ? "rgba(239,68,68,0.25)" : "var(--border)"}`, borderRadius:"var(--radius)", padding:"16px" }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"10px" }}>
         <div>
           <div style={{ fontWeight:700, fontSize:"14px" }}>{order.client?.user?.name || "Client"}</div>
@@ -86,6 +86,11 @@ function OrderCard({ order, onStatusUpdate }) {
           <div style={{ fontSize:"12px", fontWeight:700, color:"var(--red)" }}>✕ Order Cancelled by Client</div>
           {order.cancellationReason && (
             <div style={{ fontSize:"12px", color:"var(--text2)", marginTop:"3px" }}>Reason: {order.cancellationReason}</div>
+          )}
+          {order.cancelledAt && (
+            <div style={{ fontSize:"11px", color:"var(--text3)", marginTop:"2px" }}>
+              Cancelled on: {new Date(order.cancelledAt).toLocaleDateString("en-IN", { day:"numeric", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" })}
+            </div>
           )}
         </div>
       )}
@@ -304,11 +309,11 @@ function ProductFormModal({ initial, onSave, onClose, saving, token }) {
           <button onClick={onClose} style={{ background:"none", border:"none", fontSize:"20px", cursor:"pointer", color:"var(--text3)" }}>✕</button>
         </div>
 
-        {/* Image — URL only, no file upload */}
+        {/* Image — URL input with live preview */}
         <div style={{ marginBottom:"20px" }}>
           <label style={labelStyle}>Product Image URL</label>
 
-          {/* Live preview */}
+          {/* Live preview box */}
           <div style={{ marginBottom:"10px", borderRadius:"10px", overflow:"hidden", height:"180px",
             background:"var(--bg3)", border:`1px dashed ${imgLoaded ? "var(--accent)" : "var(--border)"}`,
             display:"flex", alignItems:"center", justifyContent:"center", position:"relative" }}>
@@ -326,7 +331,9 @@ function ProductFormModal({ initial, onSave, onClose, saving, token }) {
               <div style={{ textAlign:"center", color:"var(--text3)", padding:"16px" }}>
                 <div style={{ fontSize:"36px", marginBottom:"6px" }}>{CATEGORY_ICONS[form.category] || "📦"}</div>
                 <div style={{ fontSize:"12px" }}>
-                  {imgError ? "Cannot preview this URL — but it will still be saved and may show in marketplace" : "Paste an image URL below to preview"}
+                  {imgError
+                    ? "Cannot preview this URL — but it will still be saved and may show in marketplace"
+                    : "Paste an image URL below to preview"}
                 </div>
               </div>
             )}
@@ -338,7 +345,6 @@ function ProductFormModal({ initial, onSave, onClose, saving, token }) {
             )}
           </div>
 
-          {/* URL input */}
           <input style={inputStyle}
             placeholder="Paste image URL — e.g. https://i.imgur.com/abc.jpg or right-click image → Copy image address"
             value={form.imageUrl}
@@ -394,6 +400,8 @@ function ProductFormModal({ initial, onSave, onClose, saving, token }) {
           <div><label style={labelStyle}>Original Price (₹)</label><input style={inputStyle} type="number" min="0" placeholder="1299" value={form.originalPrice} onChange={h("originalPrice")} /></div>
           <div><label style={labelStyle}>Stock</label><input style={inputStyle} type="number" min="0" placeholder="100" value={form.stock} onChange={h("stock")} /></div>
         </div>
+
+        {/* Nutrition */}
         <div style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:"10px", padding:"14px", marginBottom:"14px" }}>
           <div style={{ fontSize:"12px", fontWeight:700, color:"var(--text2)", marginBottom:"10px" }}>🥗 Nutrition Info (optional)</div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:"10px" }}>
@@ -402,6 +410,8 @@ function ProductFormModal({ initial, onSave, onClose, saving, token }) {
             ))}
           </div>
         </div>
+
+        {/* Group buy */}
         <div style={{ background:"rgba(16,185,129,0.06)", border:"1px solid rgba(16,185,129,0.2)", borderRadius:"10px", padding:"14px", marginBottom:"24px" }}>
           <label style={{ display:"flex", alignItems:"center", gap:"10px", cursor:"pointer", marginBottom: form.groupBuyEnabled ? "12px" : 0 }}>
             <input type="checkbox" checked={form.groupBuyEnabled} onChange={h("groupBuyEnabled")} style={{ width:"16px", height:"16px", accentColor:"var(--green)" }} />
@@ -542,8 +552,23 @@ export default function VendorDashboard() {
   const [uploading, setUploading]     = useState(false);
   const [regForm, setRegForm] = useState({ businessName:"", businessType:"supplements", description:"", city:"" });
   const [msg, setMsg] = useState({ type:"", text:"" });
+  const [lastRefreshed, setLastRefreshed] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const pollRef = useRef(null);
 
-  const loadAll = async () => {
+  // ── Fetch only orders (used for polling — no loading spinner) ──────────────
+  const refreshOrders = useCallback(async (silent = true) => {
+    if (!silent) setRefreshing(true);
+    try {
+      const res = await api.get("/orders/vendor", { headers:{ Authorization:`Bearer ${token}` } });
+      setOrders(res.data.orders || []);
+      setLastRefreshed(new Date());
+    } catch {}
+    finally { if (!silent) setRefreshing(false); }
+  }, [token]);
+
+  // ── Full load (vendor + orders + products) ─────────────────────────────────
+  const loadAll = useCallback(async () => {
     try {
       const [vRes, oRes, pRes] = await Promise.allSettled([
         api.get("/vendors/me",            { headers:{ Authorization:`Bearer ${token}` } }),
@@ -551,12 +576,18 @@ export default function VendorDashboard() {
         api.get("/vendors/products/mine", { headers:{ Authorization:`Bearer ${token}` } }),
       ]);
       if (vRes.status === "fulfilled") setVendor(vRes.value.data.vendor);
-      if (oRes.status === "fulfilled") setOrders(oRes.value.data.orders || []);
+      if (oRes.status === "fulfilled") { setOrders(oRes.value.data.orders || []); setLastRefreshed(new Date()); }
       if (pRes.status === "fulfilled") setProducts(pRes.value.data.products || []);
     } catch {} finally { setLoading(false); }
-  };
+  }, [token]);
 
-  useEffect(() => { loadAll(); }, [token]);
+  // ── On mount: full load + start 30s polling for orders ────────────────────
+  useEffect(() => {
+    loadAll();
+    // Poll orders every 30 seconds so cancellations appear automatically
+    pollRef.current = setInterval(() => refreshOrders(true), 30_000);
+    return () => clearInterval(pollRef.current);
+  }, [loadAll, refreshOrders]);
 
   const register = async () => {
     if (!regForm.businessName) { setMsg({ type:"error", text:"Business name is required." }); return; }
@@ -634,6 +665,7 @@ export default function VendorDashboard() {
   const vcfg = VERIFICATION_CONFIG[vendor.verificationStatus];
   const isApproved = vendor.verificationStatus === "approved";
   const pendingOrders = orders.filter(o => ["pending","confirmed","preparing","shipped"].includes(o.status));
+  const cancelledOrders = orders.filter(o => o.status === "cancelled");
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:"16px" }}>
@@ -685,8 +717,8 @@ export default function VendorDashboard() {
         </div>
       )}
 
-      {/* Stats row */}
-      <div className="grid-3">
+      {/* Stats row — now includes cancelled count */}
+      <div className="grid-3" style={{ gridTemplateColumns:"repeat(4,1fr)" }}>
         <div className="stat-card">
           <div style={{ fontSize:"22px", marginBottom:"8px" }}>📦</div>
           <div className="stat-card-value" style={{ color:"var(--accent)" }}>{pendingOrders.length}</div>
@@ -696,6 +728,11 @@ export default function VendorDashboard() {
           <div style={{ fontSize:"22px", marginBottom:"8px" }}>✅</div>
           <div className="stat-card-value" style={{ color:"var(--green)" }}>{vendor.totalOrders || 0}</div>
           <div className="stat-card-label">total delivered</div>
+        </div>
+        <div className="stat-card">
+          <div style={{ fontSize:"22px", marginBottom:"8px" }}>🚫</div>
+          <div className="stat-card-value" style={{ color:"var(--red)" }}>{cancelledOrders.length}</div>
+          <div className="stat-card-label">cancelled</div>
         </div>
         <div className="stat-card">
           <div style={{ fontSize:"22px", marginBottom:"8px" }}>💰</div>
@@ -719,6 +756,39 @@ export default function VendorDashboard() {
 
       {tab === "orders" && (
         <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
+
+          {/* ── Orders toolbar: filter tabs + refresh ── */}
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:"10px" }}>
+            <div style={{ fontSize:"12px", color:"var(--text3)" }}>
+              {lastRefreshed && `Last updated: ${lastRefreshed.toLocaleTimeString("en-IN")} · auto-refreshes every 30s`}
+            </div>
+            <button
+              className="btn btn-outline btn-sm"
+              onClick={() => refreshOrders(false)}
+              disabled={refreshing}
+              style={{ fontSize:"12px" }}
+            >
+              {refreshing
+                ? <><span className="spinner" style={{ width:"11px", height:"11px", borderTopColor:"var(--accent)" }}></span> Refreshing…</>
+                : "↻ Refresh Orders"}
+            </button>
+          </div>
+
+          {/* Cancelled orders alert banner — only if any exist */}
+          {cancelledOrders.length > 0 && (
+            <div style={{ background:"rgba(239,68,68,0.06)", border:"1px solid rgba(239,68,68,0.2)", borderRadius:"var(--radius)", padding:"12px 16px", display:"flex", alignItems:"center", gap:"12px" }}>
+              <span style={{ fontSize:"20px" }}>🚫</span>
+              <div>
+                <div style={{ fontWeight:700, fontSize:"13px", color:"var(--red)" }}>
+                  {cancelledOrders.length} cancelled order{cancelledOrders.length > 1 ? "s" : ""}
+                </div>
+                <div style={{ fontSize:"12px", color:"var(--text2)", marginTop:"2px" }}>
+                  Review the cancellation reasons below and restock if needed.
+                </div>
+              </div>
+            </div>
+          )}
+
           {orders.length === 0
             ? <div className="empty-state"><div className="empty-state-icon">📦</div><div className="empty-state-text">No orders yet.</div></div>
             : orders.map(o => <OrderCard key={o._id} order={o} onStatusUpdate={updateStatus} />)
