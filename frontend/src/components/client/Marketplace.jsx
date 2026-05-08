@@ -454,13 +454,59 @@ function MyOrders({ token, user }) {
             </div>
           )}
 
+          {/* Cancelled — show reason */}
+          {o.status === "cancelled" && (
+            <div style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.2)",
+              borderRadius:"8px", padding:"10px 14px" }}>
+              <div style={{ fontSize:"12px", fontWeight:700, color:"var(--red)" }}>✕ Order Cancelled</div>
+              {o.cancellationReason && (
+                <div style={{ fontSize:"12px", color:"var(--text2)", marginTop:"3px" }}>
+                  Reason: {o.cancellationReason}
+                </div>
+              )}
+            </div>
+          )}
+
           {o.status === "delivered" && (
             <div style={{ fontSize:"12px", color:"var(--green)", fontWeight:700, textAlign:"center" }}>
               ✓ Order Delivered Successfully
             </div>
           )}
+
+          {/* Cancel button — shown for pending unpaid, and paid but not yet shipped */}
+          {o.status === "pending" && !o.isPaid && (
+            <div style={{ display:"flex", justifyContent:"flex-end", marginTop:"8px" }}>
+              <button className="btn btn-sm btn-outline"
+                style={{ color:"var(--red)", borderColor:"rgba(239,68,68,0.5)", fontSize:"12px" }}
+                onClick={() => setCancelModal(o)}
+                disabled={cancelling}>
+                ✕ Cancel Order
+              </button>
+            </div>
+          )}
+
+          {canCancel(o.status) && o.isPaid && (
+            <div style={{ display:"flex", justifyContent:"flex-end", marginTop:"8px" }}>
+              <button className="btn btn-sm btn-outline"
+                style={{ color:"var(--red)", borderColor:"rgba(239,68,68,0.5)", fontSize:"12px" }}
+                onClick={() => setCancelModal(o)}
+                disabled={cancelling}>
+                ✕ Cancel Order
+              </button>
+            </div>
+          )}
         </div>
       ))}
+
+      {/* Cancel Modal */}
+      {cancelModal && (
+        <CancelModal
+          order={cancelModal}
+          onConfirm={confirmCancel}
+          onClose={() => setCancelModal(null)}
+          cancelling={cancelling}
+        />
+      )}
     </div>
   );
 }
