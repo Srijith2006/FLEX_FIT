@@ -361,6 +361,22 @@ function MyOrders({ token, user }) {
     }
   };
 
+  const confirmCancel = async (reason) => {
+    if (!cancelModal) return;
+    setCancelling(true);
+    try {
+      await api.post(`/orders/${cancelModal._id}/cancel`, { reason }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setMsg({ type:"success", text:"Order cancelled successfully." });
+      setCancelModal(null);
+      load();
+    } catch(e) {
+      setMsg({ type:"error", text: e?.response?.data?.message || "Could not cancel order." });
+    } finally { setCancelling(false); }
+  };
+
+  const canCancel = (status) => ["pending","confirmed","preparing"].includes(status);
   const STATUS_COLORS = { pending:"var(--gold)", confirmed:"var(--accent2)", preparing:"var(--accent)", shipped:"var(--accent3)", delivered:"var(--green)", cancelled:"var(--red)" };
   const STATUS_ICONS  = { pending:"⏳", confirmed:"✅", preparing:"👨‍🍳", shipped:"🚚", delivered:"📦", cancelled:"✕" };
 
