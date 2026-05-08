@@ -56,7 +56,6 @@ const TRAINER_TABS = [
   { id: "messages",     icon: "💬", label: "Messages"         },
   { id: "verification", icon: "✅", label: "Verification"     },
   { id: "dietplan",     icon: "🥗", label: "Diet Plans"       },
-  { id: "leaderboard",  icon: "🏆", label: "Leaderboard"     },
   { id: "clientproofs", icon: "📸", label: "Client Proofs"    },
   { id: "profile",      icon: "👤", label: "Profile"       },
 ];
@@ -129,7 +128,6 @@ export default function Dashboard() {
       if (activeTab === "profile")      return <TrainerProfileView />;
       if (activeTab === "dietplan")     return <TrainerDietPlanBuilder />;
       if (activeTab === "clientproofs") return <ClientProofFeed />;
-      if (activeTab === "leaderboard") return <Leaderboard />;
     }
 
     return null;
