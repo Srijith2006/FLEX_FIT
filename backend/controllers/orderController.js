@@ -269,23 +269,22 @@ export const updateOrderStatus = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-// ── Add this function to your existing orderController.js ────────────────────
-
 export const cancelOrder = async (req, res) => {
   try {
     const { reason } = req.body;
 
-    const order = await Order.findById(req.params.orderId);
-    if (!order) {
-      return res.status(404).json({ message: "Order not found." });
-    }
+    // Get the Client document — same pattern as every other controller
+    const client = await Client.findOne({ user: req.user._id });
+    if (!client) return res.status(404).json({ message: "Client profile not found." });
 
-    // Ownership check — order.client must match logged-in client
-    if (String(order.client) !== String(req.user._id)) {
+    const order = await Order.findById(req.params.orderId);
+    if (!order) return res.status(404).json({ message: "Order not found." });
+
+    // Now compare client._id (ObjectId) against order.client (ObjectId) ✓
+    if (String(order.client) !== String(client._id)) {
       return res.status(403).json({ message: "You are not authorised to cancel this order." });
     }
 
-    // Only allow cancel before shipped
     const cancellableStatuses = ["pending", "confirmed", "preparing"];
     if (!cancellableStatuses.includes(order.status)) {
       return res.status(400).json({
