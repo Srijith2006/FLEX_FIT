@@ -29,6 +29,7 @@ import MyRewards             from "../components/client/MyRewards.jsx";
 import GroupChatList         from "../components/common/GroupChatList.jsx";
 import AdminDashboard        from "../components/admin/AdminDashboard.jsx";
 import VendorDashboard       from "../components/Vendor/VendorDashboard.jsx";
+import Leaderboard           from "../components/common/Leaderboard.jsx";
 
 const CLIENT_TABS = [
   { id: "overview",    icon: "📊", label: "Overview"         },
