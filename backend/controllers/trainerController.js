@@ -167,3 +167,105 @@ export const getTrainerClients = async (req, res, next) => {
     res.json({ clients: Array.from(uniqueClientsMap.values()) });
   } catch (error) { next(error); }
 };
+
+// ── Trainer Analytics — charts data ──────────────────────────────────────────
+export const getTrainerAnalytics = async (req, res, next) => {
+  try {
+    const trainer = await Trainer.findOne({ user: req.user._id });
+    if (!trainer) return res.status(404).json({ message: "Trainer not found" });
+
+    const programs    = await Program.find({ trainer: trainer._id });
+    const programIds  = programs.map(p => p._id);
+
+    // ── 1. Monthly revenue — last 6 months ──────────────────────────────
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+    sixMonthsAgo.setDate(1); sixMonthsAgo.setHours(0,0,0,0);
+
+    const enrollments = await Enrollment.find({
+      program: { $in: programIds },
+      createdAt: { $gte: sixMonthsAgo },
+    }).populate("program","price title");
+
+    // Group revenue by month
+    const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const revenueMap = {};
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const key = `${monthNames[d.getMonth()]} ${d.getFullYear().toString().slice(2)}`;
+      revenueMap[key] = { month: key, revenue: 0, clients: 0 };
+    }
+    enrollments.forEach(e => {
+      const d   = new Date(e.createdAt);
+      const key = `${monthNames[d.getMonth()]} ${d.getFullYear().toString().slice(2)}`;
+      if (revenueMap[key]) {
+        revenueMap[key].revenue += e.amountPaid || e.program?.price || 0;
+        revenueMap[key].clients += 1;
+      }
+    });
+    const revenueChart = Object.values(revenueMap);
+
+    // ── 2. Program enrollment comparison ────────────────────────────────
+    const programChart = programs.map(p => ({
+      name:     p.title.length > 18 ? p.title.slice(0, 18) + "…" : p.title,
+      enrolled: p.enrolledCount || 0,
+      revenue:  (p.enrolledCount || 0) * (p.price || 0),
+      price:    p.price || 0,
+    })).sort((a, b) => b.enrolled - a.enrolled).slice(0, 6);
+
+    // ── 3. Completion heatmap — last 28 days ────────────────────────────
+    const twentyEightDaysAgo = new Date();
+    twentyEightDaysAgo.setDate(twentyEightDaysAgo.getDate() - 27);
+    twentyEightDaysAgo.setHours(0,0,0,0);
+
+    const completions = await WorkoutCompletion.find({
+      program:   { $in: programIds },
+      createdAt: { $gte: twentyEightDaysAgo },
+    }).select("date");
+
+    const heatmap = {};
+    for (let i = 27; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().split("T")[0];
+      heatmap[key] = 0;
+    }
+    completions.forEach(c => {
+      const key = c.date || new Date(c.createdAt).toISOString().split("T")[0];
+      if (heatmap[key] !== undefined) heatmap[key]++;
+    });
+    const heatmapData = Object.entries(heatmap).map(([date, count]) => ({ date, count }));
+
+    // ── 4. Client list with basic progress ──────────────────────────────
+    const clientEnrollments = await Enrollment.find({
+      program: { $in: programIds }, status: "active",
+    })
+      .populate({ path: "client", populate: { path: "user", select: "name" } })
+      .populate("program", "title")
+      .sort({ createdAt: -1 });
+
+    // Deduplicate clients, get their latest completion
+    const clientMap = {};
+    for (const e of clientEnrollments) {
+      const cId = String(e.client?._id);
+      if (!cId || clientMap[cId]) continue;
+      const lastCompletion = await WorkoutCompletion.findOne({ client: e.client._id })
+        .sort({ createdAt: -1 }).select("date createdAt bodyWeight");
+      const completionCount = await WorkoutCompletion.countDocuments({
+        client: e.client._id, program: { $in: programIds },
+      });
+      clientMap[cId] = {
+        name:          e.client?.user?.name || "Client",
+        program:       e.program?.title     || "",
+        enrolledAt:    e.createdAt,
+        lastActive:    lastCompletion?.createdAt || e.createdAt,
+        completions:   completionCount,
+        bodyWeight:    lastCompletion?.bodyWeight || 0,
+      };
+    }
+    const clientList = Object.values(clientMap).slice(0, 10);
+
+    res.json({ revenueChart, programChart, heatmapData, clientList });
+  } catch (error) { next(error); }
+};
