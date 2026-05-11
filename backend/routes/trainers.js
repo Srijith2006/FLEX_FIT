@@ -1,7 +1,7 @@
 ﻿import express from "express";
 import {
   listTrainers, listAllTrainers, getTrainerProfile, updateTrainerProfile,
-  getTrainerOverview, submitVerification, reviewVerification, rateTrainer,
+  getTrainerOverview, submitVerification, reviewVerification, rateTrainer,getTrainerClients,
 } from "../controllers/trainerController.js";
 import { protect, authorize } from "../middleware/auth.js";
 import upload from "../middleware/upload.js";
@@ -16,5 +16,6 @@ router.put("/profile",                protect, authorize("trainer"), updateTrain
 router.post("/verification",          protect, authorize("trainer"), upload.single("certificate"), submitVerification);
 router.patch("/:trainerId/review",    protect, authorize("admin"),   reviewVerification);
 router.post("/:trainerId/rating",     protect, authorize("client"),  rateTrainer);
+router.get("/clients", protect, authorize("trainer"), getTrainerClients);
 
 export default router;

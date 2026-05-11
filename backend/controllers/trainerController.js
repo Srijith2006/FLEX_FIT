@@ -132,3 +132,38 @@ export const rateTrainer = async (req, res, next) => {
     res.json({ trainer });
   } catch (error) { next(error); }
 };
+
+// Trainer — get list of unique enrolled clients with personal details
+export const getTrainerClients = async (req, res, next) => {
+  try {
+    const trainer = await Trainer.findOne({ user: req.user._id });
+    if (!trainer) return res.status(404).json({ message: "Trainer not found" });
+
+    // 1. Find all enrollments for this trainer's programs
+    const enrollments = await Enrollment.find({ trainer: trainer._id })
+      .populate({
+        path: "client", // This is the Client model
+        populate: { path: "user", select: "name email" } // Get name from User model
+      });
+
+    // 2. Filter unique clients and format data
+    const uniqueClientsMap = new Map();
+    
+    enrollments.forEach(enc => {
+      if (enc.client && !uniqueClientsMap.has(enc.client._id.toString())) {
+        const c = enc.client;
+        uniqueClientsMap.set(c._id.toString(), {
+          _id: c._id,
+          name: c.user?.name || "Unknown",
+          goalType: c.goalType,
+          currentWeight: c.currentWeight,
+          targetWeight: c.targetWeight,
+          height: c.height,
+          age: c.age,
+        });
+      }
+    });
+
+    res.json({ clients: Array.from(uniqueClientsMap.values()) });
+  } catch (error) { next(error); }
+};
