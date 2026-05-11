@@ -20,3 +20,4 @@ export { default as WorkoutLog }            from "./WorkoutLog.js";
 export { default as DietPlan }              from "./DietPlan.js";
 export { default as Payment }               from "./Payment.js";
 export { default as Message }               from "./Message.js";
+export { default as Coupon }                from "./Coupon.js";

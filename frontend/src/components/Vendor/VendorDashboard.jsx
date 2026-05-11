@@ -717,35 +717,27 @@ export default function VendorDashboard() {
         </div>
       )}
 
-      {/* Stats row — now includes cancelled count */}
-      <div className="grid-3" style={{ gridTemplateColumns:"repeat(4,1fr)" }}>
-        <div className="stat-card">
-          <div style={{ fontSize:"22px", marginBottom:"8px" }}>📦</div>
-          <div className="stat-card-value" style={{ color:"var(--accent)" }}>{pendingOrders.length}</div>
-          <div className="stat-card-label">active orders</div>
-        </div>
-        <div className="stat-card">
-          <div style={{ fontSize:"22px", marginBottom:"8px" }}>✅</div>
-          <div className="stat-card-value" style={{ color:"var(--green)" }}>{vendor.totalOrders || 0}</div>
-          <div className="stat-card-label">total delivered</div>
-        </div>
-        <div className="stat-card">
-          <div style={{ fontSize:"22px", marginBottom:"8px" }}>🚫</div>
-          <div className="stat-card-value" style={{ color:"var(--red)" }}>{cancelledOrders.length}</div>
-          <div className="stat-card-label">cancelled</div>
-        </div>
-        <div className="stat-card">
-          <div style={{ fontSize:"22px", marginBottom:"8px" }}>💰</div>
-          <div className="stat-card-value" style={{ color:"var(--gold)" }}>₹{vendor.totalRevenue?.toLocaleString() || 0}</div>
-          <div className="stat-card-label">total revenue</div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="tabs">
-        {["overview","orders","products"].map(t => (
-          <button key={t} className={`tab-btn ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
-            {t === "overview" ? "📊 Overview" : t === "orders" ? "📦 Orders" : "🛒 My Products"}
+      {/* Tabs — underline style, no duplicate stats */}
+      <div style={{ display:"flex", borderBottom:"1px solid var(--border)" }}>
+        {[
+          { key:"overview", label:"📊 Overview"    },
+          { key:"orders",   label:"📦 Orders"      },
+          { key:"products", label:"🛒 My Products" },
+        ].map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)} style={{
+            padding:"12px 24px",
+            fontWeight: tab === t.key ? 700 : 500,
+            fontSize:"14px",
+            background:"none",
+            border:"none",
+            borderBottom: tab === t.key ? "2px solid var(--accent)" : "2px solid transparent",
+            color: tab === t.key ? "var(--accent)" : "var(--text3)",
+            cursor:"pointer",
+            marginBottom:"-1px",
+            transition:"color 0.15s, border-color 0.15s",
+            whiteSpace:"nowrap",
+          }}>
+            {t.label}
           </button>
         ))}
       </div>

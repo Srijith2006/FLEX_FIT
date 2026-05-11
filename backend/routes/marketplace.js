@@ -5,6 +5,7 @@ import {
   removeRecommendation, rateProduct, getMyRecommendations,
 } from "../controllers/marketplaceController.js";
 import { protect, authorize } from "../middleware/auth.js";
+import { recommendByWorkout } from "../controllers/marketplaceController.js";
 
 const router = express.Router();
 
@@ -17,5 +18,6 @@ router.post("/recommendations",              protect, authorize("trainer"), addR
 router.get("/recommendations/mine",          protect, authorize("client"), getMyRecommendations);
 router.get("/recommendations/:programId",    getProgramRecommendations);
 router.delete("/recommendations/:recId",    protect, authorize("trainer"), removeRecommendation);
+router.get("/recommend-by-workout/:workoutType?", recommendByWorkout);
 
 export default router;
