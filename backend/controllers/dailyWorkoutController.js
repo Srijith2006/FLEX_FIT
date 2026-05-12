@@ -57,25 +57,36 @@ export const deleteDailyWorkout = async (req, res, next) => {
 
 // ─── CLIENT ───────────────────────────────────────────────────────────────────
 
-// Get today's (or any date's) workout for a program the client is enrolled in
+// ── REPLACE the entire getClientWorkout function ──────────────────────────────
+
 export const getClientWorkout = async (req, res, next) => {
   try {
     const client = await Client.findOne({ user: req.user._id });
     if (!client) return res.status(404).json({ message: "Client not found" });
 
     const { programId } = req.params;
-    const date = req.query.date || new Date().toISOString().split("T")[0]; // default today
+    const date = req.query.date || new Date().toISOString().split("T")[0];
 
-    // Verify enrollment
     const enrollment = await Enrollment.findOne({ client: client._id, program: programId, status: "active" });
     if (!enrollment) return res.status(403).json({ message: "Not enrolled in this program" });
 
     const workout = await DailyWorkout.findOne({ program: programId, date });
 
-    // Also check if this client already logged this workout
+    // Check manual completion (linked to dailyWorkout)
     let completion = null;
     if (workout) {
       completion = await WorkoutCompletion.findOne({ dailyWorkout: workout._id, client: client._id });
+    }
+
+    // ✅ FIX: Also check for session_tracker completion for this date+program
+    // (these have dailyWorkout: null so the above query misses them)
+    if (!completion) {
+      completion = await WorkoutCompletion.findOne({
+        client:      client._id,
+        program:     programId,
+        date:        date,
+        sessionType: "session_tracker",
+      });
     }
 
     res.json({ workout: workout || null, completion: completion || null, date });
