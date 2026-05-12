@@ -5,20 +5,28 @@ import { CloudinaryStorage } from "multer-storage-cloudinary";
 // Configure Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_key:     process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Use Cloudinary as multer storage — files go straight to cloud, no local disk
 const storage = new CloudinaryStorage({
   cloudinary,
-  params: async (req, file) => ({
-    folder:         "flexfit",
-    allowed_formats: ["jpg", "jpeg", "png", "pdf", "webp"],
-    public_id:      `${Date.now()}-${Math.round(Math.random() * 1e9)}`,
-    // PDFs stored as raw, images auto-optimized
-    resource_type:  file.mimetype === "application/pdf" ? "raw" : "image",
-  }),
+  params: async (req, file) => {
+    // Determine the format from the filename for Cloudinary
+    const extension = file.originalname.split(".").pop().toLowerCase();
+
+    return {
+      folder: "flexfit",
+      // 1. ADD VIDEO FORMATS HERE
+      allowed_formats: ["jpg", "jpeg", "png", "pdf", "webp", "mp4", "mov", "avi"],
+      public_id: `${Date.now()}-${Math.round(Math.random() * 1e9)}`,
+      // 2. USE "auto" OR DETECT VIDEO
+      // Cloudinary needs resource_type: "video" for mp4/mov to work
+      resource_type: (extension === "mp4" || extension === "mov" || extension === "avi") 
+        ? "video" 
+        : file.mimetype === "application/pdf" ? "raw" : "image",
+    };
+  },
 });
 
 const upload = multer({ storage });
