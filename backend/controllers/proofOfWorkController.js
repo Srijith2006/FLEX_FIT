@@ -82,3 +82,53 @@ export const trainerProofFeed = async (req, res, next) => {
     res.json({ proofs: enriched });
   } catch (error) { next(error); }
 };
+
+// ── TRAINER — see all clients' session-tracker completions ────────────────────
+export const trainerSessionFeed = async (req, res, next) => {
+  try {
+    const trainer = await Trainer.findOne({ user: req.user._id });
+    if (!trainer) return res.json({ proofs: [] });
+
+    // Get all programs by this trainer
+    const programs = await Program.find({ trainer: trainer._id }).select("_id");
+    const programIds = programs.map(p => p._id);
+
+    // Get all active enrollments in trainer's programs
+    const enrollments = await Enrollment.find({ program: { $in: programIds } })
+      .populate({ path: "client", populate: { path: "user", select: "name" } });
+
+    const clientIds = [...new Set(enrollments.map(e => String(e.client?._id)).filter(Boolean))];
+
+    // Build clientId → name map
+    const clientNameMap = {};
+    enrollments.forEach(e => {
+      if (e.client?._id) clientNameMap[String(e.client._id)] = e.client.user?.name || "Client";
+    });
+
+    // Import WorkoutCompletion here to avoid circular deps
+    const { default: WorkoutCompletion } = await import("../models/WorkoutCompletion.js");
+
+    // Fetch session_tracker completions for all these clients
+    const completions = await WorkoutCompletion.find({
+      client:      { $in: clientIds },
+      sessionType: "session_tracker",
+    }).sort({ createdAt: -1 }).limit(100);
+
+    // Shape them to match the proof format the frontend expects
+    const proofs = completions.map(c => ({
+      _id:         c._id,
+      client:      c.client,
+      clientName:  clientNameMap[String(c.client)] || "Client",
+      program:     c.program,
+      date:        c.date,
+      duration:    c.duration,
+      videoUrl:    c.videoUrl,
+      sessionType: "session_tracker",
+      type:        "session_tracker",
+      caption:     c.notes || "",
+      createdAt:   c.createdAt,
+    }));
+
+    res.json({ proofs });
+  } catch (error) { next(error); }
+};

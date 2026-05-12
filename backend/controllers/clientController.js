@@ -48,7 +48,7 @@ export const submitSession = async (req, res, next) => {
       return res.status(403).json({ message: "Not enrolled in this program" });
 
     const today     = new Date().toISOString().split("T")[0];
-    const videoUrl  = req.file ? `/uploads/${req.file.filename}` : "";
+    const videoUrl  = req.file ? (req.file.path || `/uploads/${req.file.filename}`) : "";
     const sessionTs = timestamp ? new Date(timestamp) : new Date();
 
     const completion = await WorkoutCompletion.create({
