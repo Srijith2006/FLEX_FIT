@@ -8,17 +8,26 @@ const completedExerciseSchema = new mongoose.Schema({
 }, { _id: false });
 
 const workoutCompletionSchema = new mongoose.Schema({
-  dailyWorkout: { type: mongoose.Schema.Types.ObjectId, ref: "DailyWorkout", required: true },
-  client:       { type: mongoose.Schema.Types.ObjectId, ref: "Client",       required: true },
-  program:      { type: mongoose.Schema.Types.ObjectId, ref: "Program",      required: true },
-  date:         { type: String, required: true },   // "YYYY-MM-DD"
+  dailyWorkout: { type: mongoose.Schema.Types.ObjectId, ref: "DailyWorkout" }, // optional now
+  client:       { type: mongoose.Schema.Types.ObjectId, ref: "Client",   required: true },
+  program:      { type: mongoose.Schema.Types.ObjectId, ref: "Program",  required: true },
+  date:         { type: String, required: true },      // "YYYY-MM-DD"
   completedExercises: [completedExerciseSchema],
   bodyWeight:   { type: Number, default: 0 },
   notes:        { type: String, default: "" },
   completed:    { type: Boolean, default: true },
+  // Session Tracker fields
+  duration:     { type: Number, default: 0 },          // seconds
+  videoUrl:     { type: String, default: "" },          // uploaded video path
+  sessionType:  { type: String, enum: ["manual","session_tracker"], default: "manual" },
+  timestamp:    { type: Date },
 }, { timestamps: true });
 
-// One completion per client per daily workout
-workoutCompletionSchema.index({ dailyWorkout: 1, client: 1 }, { unique: true });
-
-export default mongoose.model("WorkoutCompletion", workoutCompletionSchema);
+// Allow multiple completions per day when using session tracker
+workoutCompletionSchema.index({ dailyWorkout: 1, client: 1 }, {
+  unique: true,
+  partialFilterExpression: {
+    dailyWorkout: { $exists: true, $ne: null },
+    sessionType:  "manual",
+  },
+});
