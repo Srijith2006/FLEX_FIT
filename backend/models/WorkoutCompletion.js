@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 
+// Sub-schema for manual exercise logging (Legacy Support)
 const completedExerciseSchema = new mongoose.Schema({
   name:   { type: String },
   sets:   { type: Number, default: 0 },
@@ -8,26 +9,46 @@ const completedExerciseSchema = new mongoose.Schema({
 }, { _id: false });
 
 const workoutCompletionSchema = new mongoose.Schema({
-  dailyWorkout: { type: mongoose.Schema.Types.ObjectId, ref: "DailyWorkout" }, // optional now
-  client:       { type: mongoose.Schema.Types.ObjectId, ref: "Client",   required: true },
-  program:      { type: mongoose.Schema.Types.ObjectId, ref: "Program",  required: true },
-  date:         { type: String, required: true },      // "YYYY-MM-DD"
+  // Relations
+  client:       { type: mongoose.Schema.Types.ObjectId, ref: "Client",  required: true },
+  program:      { type: mongoose.Schema.Types.ObjectId, ref: "Program", required: true },
+  dailyWorkout: { type: mongoose.Schema.Types.ObjectId, ref: "DailyWorkout" }, // Null if using Session Tracker
+  
+  // Date tracking
+  date:         { type: String, required: true }, // Format: "YYYY-MM-DD"
+  timestamp:    { type: Date, default: Date.now },
+
+  // Manual Logging Fields
   completedExercises: [completedExerciseSchema],
   bodyWeight:   { type: Number, default: 0 },
   notes:        { type: String, default: "" },
-  completed:    { type: Boolean, default: true },
-  // Session Tracker fields
-  duration:     { type: Number, default: 0 },          // seconds
-  videoUrl:     { type: String, default: "" },          // uploaded video path
-  sessionType:  { type: String, enum: ["manual","session_tracker"], default: "manual" },
-  timestamp:    { type: Date },
+  
+  // Session Tracker Fields (New)
+  duration:     { type: Number, default: 0 }, // Length of session in seconds
+  videoUrl:     { type: String, default: "" }, // Path to the uploaded workout video
+  sessionType:  { 
+    type: String, 
+    enum: ["manual", "session_tracker"], 
+    default: "manual" 
+  },
+  
+  completed:    { type: Boolean, default: true }
 }, { timestamps: true });
 
-// Allow multiple completions per day when using session tracker
+/**
+ * INDEXING LOGIC:
+ * Prevents multiple "manual" logs for the same daily workout on the same day,
+ * but allows multiple "session_tracker" entries (e.g., morning and evening sessions).
+ */
 workoutCompletionSchema.index({ dailyWorkout: 1, client: 1 }, {
   unique: true,
   partialFilterExpression: {
     dailyWorkout: { $exists: true, $ne: null },
-    sessionType:  "manual",
+    sessionType: "manual",
   },
 });
+
+const WorkoutCompletion = mongoose.model("WorkoutCompletion", workoutCompletionSchema);
+
+// EXPORT: Ensure this matches the import in your models/index.js
+export default WorkoutCompletion;
