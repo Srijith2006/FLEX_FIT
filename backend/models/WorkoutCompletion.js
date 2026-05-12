@@ -36,19 +36,18 @@ const workoutCompletionSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 /**
- * INDEXING LOGIC:
- * Prevents multiple "manual" logs for the same daily workout on the same day,
- * but allows multiple "session_tracker" entries (e.g., morning and evening sessions).
+ * UPDATED INDEXING LOGIC:
+ * Only enforces uniqueness for "manual" sessions that have a valid dailyWorkout ID.
+ * This prevents the duplicate key error when dailyWorkout is null.
  */
 workoutCompletionSchema.index({ dailyWorkout: 1, client: 1 }, {
   unique: true,
   partialFilterExpression: {
-    dailyWorkout: { $exists: true, $ne: null },
     sessionType: "manual",
+    dailyWorkout: { $type: "objectId" } // This ensures nulls are ignored
   },
 });
 
 const WorkoutCompletion = mongoose.model("WorkoutCompletion", workoutCompletionSchema);
 
-// EXPORT: Ensure this matches the import in your models/index.js
 export default WorkoutCompletion;
