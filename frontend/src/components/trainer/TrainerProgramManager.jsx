@@ -310,6 +310,11 @@ function ProgramLiveSessions({ program }) {
     try {
       await api.post("/sessions", {
         ...form,
+        // FIX: datetime-local gives "2026-05-13T11:55" with no timezone.
+        // The browser treats it as LOCAL time. .toISOString() converts it
+        // correctly to UTC so the backend stores the right time and the
+        // display always matches exactly what the trainer entered.
+        scheduledAt: new Date(form.scheduledAt).toISOString(),
         programId: program._id,
         isOpenToAll: false,
       }, { headers:{ Authorization:`Bearer ${token}` } });
