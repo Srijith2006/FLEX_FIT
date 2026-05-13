@@ -21,7 +21,11 @@ export default function Navbar() {
     vendor: "badge-vendor",
   }[user?.role] || "badge-client";
 
-  // Logic to check if user should see the Marketplace
+  // LOGIC REFINEMENT:
+  // 1. Hide Home/Pricing for Trainers specifically
+  const showPublicLinks = !user || user.role !== "trainer";
+  
+  // 2. Marketplace stays available for Clients and Trainers
   const showMarketplace = user?.role === "client" || user?.role === "trainer";
 
   return (
@@ -32,10 +36,8 @@ export default function Navbar() {
         </Link>
 
         <nav className="navlinks">
-          <Link to="/" className="hide-mobile">Home</Link>
-          <Link to="/pricing" className="hide-mobile">Pricing</Link>
+          {/* Only show these if the user is a guest or a client/vendor */}
           
-          {/* Marketplace link - Restricted to Client and Trainer */}
           {showMarketplace && (
             <Link to="/marketplace" className="text-highlight">Marketplace</Link>
           )}

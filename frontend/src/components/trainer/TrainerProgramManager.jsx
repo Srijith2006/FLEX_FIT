@@ -268,6 +268,160 @@ function EnrolledClients({ program }) {
   );
 }
 
+function ProgramLiveSessions({ program }) {
+  const { token } = useAuth();
+  const [sessions,  setSessions]  = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [creating,  setCreating]  = useState(false);
+  const [saving,    setSaving]    = useState(false);
+  const [msg,       setMsg]       = useState({ type:"", text:"" });
+  const [form,      setForm]      = useState({
+    title:"", description:"", scheduledAt:"", durationMinutes:60, meetingLink:"",
+  });
+
+  const minDate = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
+  function isLive(s) {
+    const now = Date.now(), start = new Date(s.scheduledAt).getTime();
+    return now >= start && now <= start + s.durationMinutes * 60000;
+  }
+  function formatDT(d) {
+    return new Date(d).toLocaleString("en-US", {
+      weekday:"short", month:"short", day:"numeric", hour:"2-digit", minute:"2-digit",
+    });
+  }
+
+  const load = async () => {
+    try {
+      setLoading(true);
+      const res = await api.get("/sessions/mine", { headers:{ Authorization:`Bearer ${token}` } });
+      const all = res.data.sessions || [];
+      setSessions(all.filter(s => s.program && String(s.program?._id || s.program) === String(program._id)));
+    } catch {} finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, [program._id]);
+
+  const save = async () => {
+    if (!form.title || !form.scheduledAt || !form.meetingLink) {
+      setMsg({ type:"error", text:"Title, date/time and meeting link are required." }); return;
+    }
+    setSaving(true); setMsg({ type:"", text:"" });
+    try {
+      await api.post("/sessions", {
+        ...form,
+        programId: program._id,
+        isOpenToAll: false,
+      }, { headers:{ Authorization:`Bearer ${token}` } });
+      setMsg({ type:"success", text:"Session scheduled! Enrolled clients will see it." });
+      setCreating(false);
+      setForm({ title:"", description:"", scheduledAt:"", durationMinutes:60, meetingLink:"" });
+      load();
+    } catch (e) {
+      setMsg({ type:"error", text: e?.response?.data?.message || "Failed to create session." });
+    } finally { setSaving(false); }
+  };
+
+  const deleteSession = async (id) => {
+    if (!confirm("Delete this session?")) return;
+    try {
+      await api.delete(`/sessions/${id}`, { headers:{ Authorization:`Bearer ${token}` } });
+      load();
+    } catch {}
+  };
+
+  return (
+    <div style={{ marginTop:"20px" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"12px" }}>
+        <div style={{ fontSize:"13px", fontWeight:700, color:"var(--text3)", textTransform:"uppercase", letterSpacing:"0.5px" }}>
+          Live Sessions ({sessions.length})
+        </div>
+        <button className="btn btn-accent btn-sm" onClick={() => { setCreating(c => !c); setMsg({ type:"", text:"" }); }}>
+          {creating ? "✕ Cancel" : "+ Schedule Session"}
+        </button>
+      </div>
+
+      {creating && (
+        <div style={{ background:"var(--bg3)", border:"1px solid var(--border2)", borderRadius:"var(--radius)", padding:"16px", marginBottom:"12px" }}>
+          {msg.text && <div className={`alert alert-${msg.type==="error"?"error":"success"}`} style={{ marginBottom:"12px" }}>{msg.text}</div>}
+          <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
+            <div className="form-group">
+              <label className="form-label">Session Title</label>
+              <input className="form-input" placeholder="e.g. Week 2 — Live Q&A" value={form.title}
+                onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Description (optional)</label>
+              <input className="form-input" placeholder="What will you cover?" value={form.description}
+                onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px" }}>
+              <div className="form-group">
+                <label className="form-label">Date & Time</label>
+                <input className="form-input" type="datetime-local" min={minDate} value={form.scheduledAt}
+                  onChange={e => setForm(f => ({ ...f, scheduledAt: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Duration (minutes)</label>
+                <input className="form-input" type="number" min="15" step="15" value={form.durationMinutes}
+                  onChange={e => setForm(f => ({ ...f, durationMinutes: e.target.value }))} />
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Zoom / Google Meet Link</label>
+              <input className="form-input" placeholder="https://meet.google.com/xxx-xxxx-xxx" value={form.meetingLink}
+                onChange={e => setForm(f => ({ ...f, meetingLink: e.target.value }))} />
+            </div>
+            <button className="btn btn-accent btn-full" onClick={save} disabled={saving}>
+              {saving ? "Scheduling…" : "📅 Schedule for this Program"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!creating && msg.text && (
+        <div className={`alert alert-${msg.type==="error"?"error":"success"}`} style={{ marginBottom:"12px" }}>{msg.text}</div>
+      )}
+
+      {loading ? (
+        <div className="loading-screen" style={{ minHeight:"60px" }}><div className="spinner"></div></div>
+      ) : sessions.length === 0 ? (
+        <div style={{ color:"var(--text3)", fontSize:"13px", textAlign:"center", padding:"16px" }}>
+          No sessions scheduled for this program yet.
+        </div>
+      ) : (
+        <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+          {sessions.map(s => (
+            <div key={s._id} style={{
+              display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"12px",
+              padding:"12px 14px",
+              background: isLive(s) ? "rgba(16,185,129,0.08)" : "var(--bg3)",
+              border:`1px solid ${isLive(s) ? "var(--green)" : "var(--border)"}`,
+              borderRadius:"var(--radius)",
+            }}>
+              <div style={{ flex:1 }}>
+                <div style={{ display:"flex", gap:"8px", alignItems:"center", marginBottom:"3px" }}>
+                  <span style={{ fontWeight:700, fontSize:"13px" }}>{s.title}</span>
+                  {isLive(s) && <span className="tag tag-approved">🔴 LIVE</span>}
+                </div>
+                <div style={{ fontSize:"11px", color:"var(--text3)" }}>
+                  {formatDT(s.scheduledAt)} · {s.durationMinutes}min
+                </div>
+                {s.description && <div style={{ fontSize:"11px", color:"var(--text2)", marginTop:"2px" }}>{s.description}</div>}
+                <a href={s.meetingLink} target="_blank" rel="noreferrer"
+                  style={{ fontSize:"11px", color:"var(--accent2)", display:"block", marginTop:"3px" }}>
+                  🔗 {s.meetingLink}
+                </a>
+              </div>
+              <button className="btn btn-danger btn-sm" onClick={() => deleteSession(s._id)} style={{ flexShrink:0 }}>Delete</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ... (imports remain same)
 
 export default function TrainerProgramManager() {
@@ -311,6 +465,9 @@ export default function TrainerProgramManager() {
           </div>
         </div>
         <EnrolledClients program={activeProgram} />
+        <div style={{ borderTop:"1px solid var(--border)", marginTop:"20px", paddingTop:"4px" }}>
+          <ProgramLiveSessions program={activeProgram} />
+        </div>
       </div>
     );
   }

@@ -1,15 +1,19 @@
+// backend/routes/sessions.js
+
 import express from "express";
 import {
-  createSession, mySessions, deleteSession, clientSessions, programSessions,
+  createSession,
+  getMySessionsAsTrainer,
+  getSessionsForClient,
+  deleteSession,
 } from "../controllers/liveSessionController.js";
-import { protect, authorize } from "../middleware/auth.js";
+import { protect } from "../middleware/auth.js";
 
 const router = express.Router();
 
-router.get("/mine", protect, authorize("trainer"), mySessions);
-router.get("/for-me", protect, authorize("client"), clientSessions);
-router.get("/program/:programId", programSessions);
-router.post("/", protect, authorize("trainer"), createSession);
-router.delete("/:sessionId", protect, authorize("trainer"), deleteSession);
+router.post(   "/",        protect, createSession);
+router.get(    "/mine",    protect, getMySessionsAsTrainer);
+router.get(    "/for-me",  protect, getSessionsForClient);
+router.delete( "/:id",     protect, deleteSession);
 
 export default router;

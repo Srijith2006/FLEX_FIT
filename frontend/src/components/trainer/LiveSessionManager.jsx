@@ -1,3 +1,10 @@
+// frontend/src/components/trainer/LiveSessionManager.jsx
+//
+// READ-ONLY overview of all sessions across all of the trainer's programs.
+// Sessions are now scheduled from within each program's manage page
+// (TrainerProgramManager → ProgramLiveSessions), so the "Schedule Session"
+// button has been removed here to avoid confusion.
+
 import { useEffect, useState } from "react";
 import api from "../../services/api.js";
 import useAuth from "../../hooks/useAuth.js";
@@ -10,162 +17,231 @@ function formatDT(d) {
 }
 
 function isLive(s) {
-  const now = Date.now();
+  const now   = Date.now();
   const start = new Date(s.scheduledAt).getTime();
   return now >= start && now <= start + s.durationMinutes * 60000;
 }
 
+function isUpcoming(s) {
+  return new Date(s.scheduledAt).getTime() > Date.now();
+}
+
 export default function LiveSessionManager() {
-  const { token } = useAuth();
-  const [sessions, setSessions] = useState([]);
-  const [myPrograms, setMyPrograms] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState({ type: "", text: "" });
-  const [form, setForm] = useState({
-    title: "", description: "", scheduledAt: "", durationMinutes: 60,
-    meetingLink: "", programId: "", isOpenToAll: true,
-  });
+  const { token }       = useAuth();
+  const [sessions,  setSessions]  = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [filter,    setFilter]    = useState("all");   // "all" | "upcoming" | "live"
+  const [msg,       setMsg]       = useState({ type: "", text: "" });
 
   const load = async () => {
     try {
       setLoading(true);
-      const [sRes, pRes] = await Promise.all([
-        api.get("/sessions/mine", { headers: { Authorization: `Bearer ${token}` } }),
-        api.get("/programs/mine", { headers: { Authorization: `Bearer ${token}` } }),
-      ]);
-      setSessions(sRes.data.sessions || []);
-      setMyPrograms(pRes.data.programs || []);
-    } catch {} finally { setLoading(false); }
+      const res = await api.get("/sessions/mine", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setSessions(res.data.sessions || []);
+    } catch {
+      setMsg({ type: "error", text: "Failed to load sessions." });
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);
 
-  const save = async () => {
-    if (!form.title || !form.scheduledAt || !form.meetingLink) {
-      setMsg({ type: "error", text: "Title, date/time and meeting link are required." }); return;
-    }
-    setSaving(true); setMsg({ type: "", text: "" });
-    try {
-      await api.post("/sessions", { ...form, programId: form.programId || undefined }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setMsg({ type: "success", text: "Session scheduled! All enrolled clients will see it." });
-      setCreating(false);
-      setForm({ title: "", description: "", scheduledAt: "", durationMinutes: 60, meetingLink: "", programId: "", isOpenToAll: true });
-      load();
-    } catch (e) {
-      setMsg({ type: "error", text: e?.response?.data?.message || "Failed to create session." });
-    } finally { setSaving(false); }
-  };
-
   const deleteSession = async (id) => {
-    if (!confirm("Delete this session?")) return;
+    if (!confirm("Delete this session? Enrolled clients will no longer see it.")) return;
     try {
       await api.delete(`/sessions/${id}`, { headers: { Authorization: `Bearer ${token}` } });
-      load();
-    } catch {}
+      setSessions(prev => prev.filter(s => s._id !== id));
+    } catch {
+      setMsg({ type: "error", text: "Failed to delete session." });
+    }
   };
 
-  // Min date = now formatted for datetime-local input
-  const minDate = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  // ── filtered list ──────────────────────────────────────────────────────────
+  const visible = sessions.filter(s => {
+    if (filter === "live")     return isLive(s);
+    if (filter === "upcoming") return isUpcoming(s) && !isLive(s);
+    return true;
+  });
+
+  const liveCount     = sessions.filter(isLive).length;
+  const upcomingCount = sessions.filter(s => isUpcoming(s) && !isLive(s)).length;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       <div className="card">
+
+        {/* ── Header ── */}
         <div className="flex-between mb-4">
-          <h3 className="font-heading" style={{ fontSize: "22px" }}>Live Sessions</h3>
-          <button className="btn btn-accent btn-sm" onClick={() => setCreating(c => !c)}>
-            {creating ? "✕ Cancel" : "+ Schedule Session"}
+          <div>
+            <h3 className="font-heading" style={{ fontSize: "22px", marginBottom: "4px" }}>
+              Live Sessions
+            </h3>
+            <div style={{ fontSize: "12px", color: "var(--text3)" }}>
+              Schedule sessions from within each program's Manage page.
+            </div>
+          </div>
+          <button
+            className="btn btn-outline btn-sm"
+            onClick={load}
+            style={{ flexShrink: 0 }}
+            title="Refresh"
+          >
+            ↻ Refresh
           </button>
         </div>
 
+        {/* ── Info banner ── */}
+        <div style={{
+          background: "rgba(0,112,243,0.07)",
+          border: "1px solid rgba(0,112,243,0.18)",
+          borderRadius: "10px",
+          padding: "12px 16px",
+          display: "flex",
+          gap: "10px",
+          alignItems: "flex-start",
+          marginBottom: "16px",
+        }}>
+          <span style={{ fontSize: "16px", flexShrink: 0 }}>ℹ️</span>
+          <div style={{ fontSize: "12px", color: "var(--text2)", lineHeight: "1.6" }}>
+            Sessions are now <strong>program-scoped</strong> — each session is visible only to clients
+            enrolled in that specific program. To schedule a new session, open
+            <strong> My Programs → Manage → Live Sessions</strong>.
+          </div>
+        </div>
+
+        {/* ── Filter pills ── */}
+        <div style={{ display: "flex", gap: "6px", marginBottom: "16px" }}>
+          {[
+            { key: "all",      label: `All (${sessions.length})` },
+            { key: "live",     label: `🔴 Live (${liveCount})` },
+            { key: "upcoming", label: `📅 Upcoming (${upcomingCount})` },
+          ].map(f => (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              style={{
+                padding: "6px 14px",
+                borderRadius: "8px",
+                fontSize: "12px",
+                fontWeight: 600,
+                cursor: "pointer",
+                border: `1px solid ${filter === f.key ? "var(--accent)" : "var(--border)"}`,
+                background: filter === f.key ? "var(--accent)" : "transparent",
+                color: filter === f.key ? "#fff" : "var(--text2)",
+                transition: "all 0.15s",
+              }}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        {msg.text && (
+          <div
+            className={`alert alert-${msg.type === "error" ? "error" : "success"}`}
+            style={{ marginBottom: "12px" }}
+          >
+            {msg.text}
+            <button
+              onClick={() => setMsg({ type: "", text: "" })}
+              style={{ background: "none", border: "none", marginLeft: "auto", cursor: "pointer", color: "inherit" }}
+            >✕</button>
+          </div>
+        )}
+
+        {/* ── Session list ── */}
         {loading ? (
-          <div className="loading-screen" style={{ minHeight: "140px" }}><div className="spinner"></div></div>
-        ) : sessions.length === 0 ? (
+          <div className="loading-screen" style={{ minHeight: "140px" }}>
+            <div className="spinner"></div>
+          </div>
+        ) : visible.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon">🎥</div>
-            <div className="empty-state-text">No sessions scheduled yet.</div>
+            <div className="empty-state-text">
+              {filter === "live"
+                ? "No sessions are live right now."
+                : filter === "upcoming"
+                ? "No upcoming sessions scheduled."
+                : "No sessions yet. Schedule one from a program's Manage page."}
+            </div>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            {sessions.map(s => (
-              <div key={s._id} style={{
-                background: "var(--bg3)", border: `1px solid ${isLive(s) ? "var(--green)" : "var(--border)"}`,
-                borderRadius: "var(--radius)", padding: "14px",
-                display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px"
-              }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "4px" }}>
-                    <span style={{ fontWeight: 700 }}>{s.title}</span>
-                    {isLive(s) && <span className="tag tag-approved">🔴 LIVE NOW</span>}
+            {visible.map(s => (
+              <div
+                key={s._id}
+                style={{
+                  background: isLive(s) ? "rgba(16,185,129,0.06)" : "var(--bg3)",
+                  border: `1px solid ${isLive(s) ? "var(--green)" : "var(--border)"}`,
+                  borderRadius: "var(--radius)",
+                  padding: "14px 16px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  gap: "12px",
+                  transition: "border-color 0.2s",
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {/* Title + live badge */}
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "4px", flexWrap: "wrap" }}>
+                    <span style={{ fontWeight: 700, fontSize: "14px" }}>{s.title}</span>
+                    {isLive(s) && (
+                      <span className="tag tag-approved" style={{ animation: "pulse 1.5s infinite" }}>
+                        🔴 LIVE NOW
+                      </span>
+                    )}
                   </div>
-                  <div style={{ fontSize: "12px", color: "var(--text3)" }}>
-                    {formatDT(s.scheduledAt)} · {s.durationMinutes}min
-                    {s.program && <span> · for "{s.program.title}"</span>}
+
+                  {/* Program label */}
+                  {s.program?.title && (
+                    <div style={{
+                      display: "inline-flex", alignItems: "center", gap: "4px",
+                      fontSize: "10px", fontWeight: 700, color: "var(--accent2)",
+                      background: "rgba(0,112,243,0.08)", border: "1px solid rgba(0,112,243,0.15)",
+                      padding: "2px 8px", borderRadius: "20px", marginBottom: "5px",
+                    }}>
+                      📋 {s.program.title}
+                    </div>
+                  )}
+
+                  {/* Time + duration */}
+                  <div style={{ fontSize: "12px", color: "var(--text3)", marginBottom: "3px" }}>
+                    {formatDT(s.scheduledAt)} · {s.durationMinutes} min
                   </div>
-                  {s.description && <div style={{ fontSize: "12px", color: "var(--text2)", marginTop: "3px" }}>{s.description}</div>}
-                  <a href={s.meetingLink} target="_blank" rel="noreferrer" style={{ fontSize: "12px", color: "var(--accent2)", display: "block", marginTop: "4px" }}>
+
+                  {s.description && (
+                    <div style={{ fontSize: "12px", color: "var(--text2)", marginBottom: "4px" }}>
+                      {s.description}
+                    </div>
+                  )}
+
+                  <a
+                    href={s.meetingLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ fontSize: "12px", color: "var(--accent2)", wordBreak: "break-all" }}
+                  >
                     🔗 {s.meetingLink}
                   </a>
                 </div>
-                <button className="btn btn-danger btn-sm" onClick={() => deleteSession(s._id)}>Delete</button>
+
+                {/* Delete */}
+                <button
+                  className="btn btn-danger btn-sm"
+                  onClick={() => deleteSession(s._id)}
+                  style={{ flexShrink: 0 }}
+                >
+                  Delete
+                </button>
               </div>
             ))}
           </div>
         )}
       </div>
-
-      {creating && (
-        <div className="card">
-          <h3 className="font-heading" style={{ fontSize: "20px", marginBottom: "20px" }}>Schedule a Session</h3>
-
-          {msg.text && <div className={`alert alert-${msg.type === "error" ? "error" : "success"} mb-4`}>{msg.text}</div>}
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-            <div className="form-group">
-              <label className="form-label">Session Title</label>
-              <input className="form-input" placeholder="e.g. Week 2 — Full Body HIIT" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Description (optional)</label>
-              <input className="form-input" placeholder="What will you cover?" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Date & Time</label>
-                <input className="form-input" type="datetime-local" min={minDate} value={form.scheduledAt} onChange={e => setForm(f => ({ ...f, scheduledAt: e.target.value }))} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Duration (minutes)</label>
-                <input className="form-input" type="number" min="15" step="15" value={form.durationMinutes} onChange={e => setForm(f => ({ ...f, durationMinutes: e.target.value }))} />
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Zoom / Google Meet Link</label>
-              <input className="form-input" placeholder="https://meet.google.com/xxx-xxxx-xxx" value={form.meetingLink} onChange={e => setForm(f => ({ ...f, meetingLink: e.target.value }))} />
-            </div>
-
-            {myPrograms.length > 0 && (
-              <div className="form-group">
-                <label className="form-label">Link to Program (optional)</label>
-                <select className="form-select" value={form.programId} onChange={e => setForm(f => ({ ...f, programId: e.target.value }))}>
-                  <option value="">All enrolled clients</option>
-                  {myPrograms.map(p => <option key={p._id} value={p._id}>{p.title}</option>)}
-                </select>
-              </div>
-            )}
-
-            <button className="btn btn-accent btn-full" onClick={save} disabled={saving}>
-              {saving ? "Scheduling…" : "📅 Schedule Session"}
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

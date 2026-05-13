@@ -205,11 +205,8 @@ function ProductCard({ product, onBuy, onRate, userRatings }) {
   const [qty, setQty] = useState(1);
   const [ratingDone, setRatingDone] = useState(userRatings?.[product._id] || false);
 
-  const discount    = product.originalPrice > product.price
+  const discount = product.originalPrice > product.price
     ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100) : 0;
-  const groupReady  = product.groupBuyEnabled && product.currentGroupBuyers >= product.groupBuyThreshold;
-  const groupNeeded = product.groupBuyEnabled ? Math.max(0, product.groupBuyThreshold - (product.currentGroupBuyers||0)) : 0;
-  const pct         = product.groupBuyEnabled ? Math.min(100,((product.currentGroupBuyers||0)/product.groupBuyThreshold)*100) : 0;
 
   const handleRate = async (rating) => {
     await onRate(product._id, rating);
@@ -222,36 +219,38 @@ function ProductCard({ product, onBuy, onRate, userRatings }) {
       display:"flex", flexDirection:"column", overflow:"hidden",
       transition:"border-color 0.2s, transform 0.2s, box-shadow 0.2s",
     }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor="var(--border2)"; e.currentTarget.style.transform="translateY(-3px)"; e.currentTarget.style.boxShadow="0 8px 32px rgba(0,0,0,0.4)"; }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor="var(--border)";  e.currentTarget.style.transform="none"; e.currentTarget.style.boxShadow="none"; }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor="var(--accent)"; e.currentTarget.style.transform="translateY(-4px)"; e.currentTarget.style.boxShadow="0 12px 40px rgba(0,112,243,0.12)"; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor="var(--border)"; e.currentTarget.style.transform="none"; e.currentTarget.style.boxShadow="none"; }}
     >
-      {/* Visual — show product image if available, else category emoji */}
-      <div style={{ height:"200px", background:"linear-gradient(135deg,var(--bg3),var(--surface2))", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"48px", position:"relative", flexShrink:0, overflow:"hidden" }}>
+      {/* Image */}
+      <div style={{ height:"190px", background:"linear-gradient(145deg,var(--bg3) 0%,var(--surface2) 100%)", display:"flex", alignItems:"center", justifyContent:"center", position:"relative", flexShrink:0, overflow:"hidden" }}>
         {product.imageUrl ? (
           <img
             src={product.imageUrl}
             alt={product.name}
             referrerPolicy="no-referrer"
-            style={{ width:"100%", height:"100%", objectFit:"contain", objectPosition:"center", display:"block", padding:"8px" }}
+            style={{ width:"100%", height:"100%", objectFit:"contain", objectPosition:"center", display:"block", padding:"12px" }}
             onError={e => { e.target.style.display="none"; e.target.nextSibling.style.display="flex"; }}
           />
         ) : null}
         <div style={{ display: product.imageUrl ? "none" : "flex", width:"100%", height:"100%",
-          alignItems:"center", justifyContent:"center", fontSize:"48px" }}>
+          alignItems:"center", justifyContent:"center", fontSize:"52px" }}>
           {CAT_ICON[product.category]||"📦"}
         </div>
-        {discount > 0 && <div style={{ position:"absolute", top:"8px", left:"8px", background:"var(--red)", color:"#fff", fontSize:"10px", fontWeight:700, padding:"2px 8px", borderRadius:"10px" }}>-{discount}%</div>}
-        {groupReady && <div style={{ position:"absolute", top:"8px", right:"8px", background:"var(--green)", color:"#fff", fontSize:"10px", fontWeight:700, padding:"2px 8px", borderRadius:"10px" }}>🎉 GROUP DEAL</div>}
+        {discount > 0 && <div style={{ position:"absolute", top:"10px", left:"10px", background:"var(--red)", color:"#fff", fontSize:"10px", fontWeight:700, padding:"3px 9px", borderRadius:"20px", letterSpacing:"0.4px" }}>−{discount}%</div>}
       </div>
 
-      <div style={{ padding:"14px", flex:1, display:"flex", flexDirection:"column", gap:"8px" }}>
+      <div style={{ padding:"16px", flex:1, display:"flex", flexDirection:"column", gap:"10px" }}>
         <div>
-          <div style={{ fontWeight:700, fontSize:"14px", lineHeight:"1.3", marginBottom:"3px" }}>{product.name}</div>
-          <div style={{ fontSize:"11px", color:"var(--text3)" }}>{product.vendor?.businessName} · {product.vendor?.city}</div>
+          <div style={{ fontWeight:700, fontSize:"15px", lineHeight:"1.3", marginBottom:"4px" }}>{product.name}</div>
+          <div style={{ fontSize:"11px", color:"var(--text3)", display:"flex", alignItems:"center", gap:"5px" }}>
+            <span style={{ width:"5px", height:"5px", borderRadius:"50%", background:"var(--accent)", display:"inline-block", opacity:0.6 }}></span>
+            {product.vendor?.businessName} · {product.vendor?.city}
+          </div>
         </div>
 
         {product.description && (
-          <div style={{ fontSize:"12px", color:"var(--text2)", lineHeight:"1.5" }}>{product.description}</div>
+          <div style={{ fontSize:"12px", color:"var(--text2)", lineHeight:"1.6", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden" }}>{product.description}</div>
         )}
 
         {/* Macros */}
@@ -277,19 +276,6 @@ function ProductCard({ product, onBuy, onRate, userRatings }) {
           )}
         </div>
 
-        {/* Group buying */}
-        {product.groupBuyEnabled && !groupReady && (
-          <div style={{ background:"rgba(16,185,129,0.06)", border:"1px solid rgba(16,185,129,0.15)", borderRadius:"8px", padding:"8px 10px" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", fontSize:"10px", marginBottom:"5px" }}>
-              <span style={{ color:"var(--green)", fontWeight:700 }}>👥 Group Deal — {product.groupBuyDiscount}% off</span>
-              <span style={{ color:"var(--text3)" }}>{groupNeeded} more needed</span>
-            </div>
-            <div style={{ height:"4px", background:"var(--border)", borderRadius:"2px" }}>
-              <div style={{ height:"100%", width:`${pct}%`, background:"var(--green)", borderRadius:"2px" }}/>
-            </div>
-          </div>
-        )}
-
         {/* Rate this product */}
         {!ratingDone ? (
           <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
@@ -301,20 +287,23 @@ function ProductCard({ product, onBuy, onRate, userRatings }) {
         )}
 
         {/* Price + Order */}
-        <div style={{ marginTop:"auto", paddingTop:"6px" }}>
+        <div style={{ marginTop:"auto", paddingTop:"8px", borderTop:"1px solid var(--border)" }}>
           <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"10px" }}>
-            <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:"26px", color:"var(--accent)", lineHeight:1 }}>₹{product.price}</span>
+            <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:"28px", color:"var(--accent)", lineHeight:1 }}>₹{product.price}</span>
             {product.originalPrice > product.price && <span style={{ fontSize:"13px", color:"var(--text3)", textDecoration:"line-through" }}>₹{product.originalPrice}</span>}
             <span style={{ fontSize:"11px", color:"var(--text3)", marginLeft:"auto" }}>/{product.unit||"unit"}</span>
           </div>
           <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:"4px", background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:"8px", padding:"4px 8px", flexShrink:0 }}>
-              <button onClick={() => setQty(q => Math.max(1,q-1))} style={{ background:"none", border:"none", color:"var(--text2)", cursor:"pointer", fontSize:"16px", lineHeight:1 }}>−</button>
-              <span style={{ fontSize:"14px", fontWeight:700, minWidth:"18px", textAlign:"center" }}>{qty}</span>
-              <button onClick={() => setQty(q => q+1)} style={{ background:"none", border:"none", color:"var(--text2)", cursor:"pointer", fontSize:"16px", lineHeight:1 }}>+</button>
+            <div style={{ display:"flex", alignItems:"center", gap:"0", background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:"10px", overflow:"hidden", flexShrink:0 }}>
+              <button onClick={() => setQty(q => Math.max(1,q-1))} style={{ background:"none", border:"none", borderRight:"1px solid var(--border)", color:"var(--text2)", cursor:"pointer", fontSize:"16px", lineHeight:1, padding:"7px 12px" }}>−</button>
+              <span style={{ fontSize:"14px", fontWeight:700, minWidth:"28px", textAlign:"center" }}>{qty}</span>
+              <button onClick={() => setQty(q => q+1)} style={{ background:"none", border:"none", borderLeft:"1px solid var(--border)", color:"var(--text2)", cursor:"pointer", fontSize:"16px", lineHeight:1, padding:"7px 12px" }}>+</button>
             </div>
-            <button className="btn btn-accent" style={{ flex:1, fontSize:"13px", padding:"9px 12px" }} onClick={() => onBuy(product, qty)}>
-              🛒 Order · ₹{product.price * qty}
+            <button
+              className="btn btn-accent"
+              style={{ flex:1, fontSize:"13px", padding:"9px 12px", borderRadius:"10px", fontWeight:700 }}
+              onClick={() => onBuy(product, qty)}>
+              Order · ₹{product.price * qty}
             </button>
           </div>
         </div>
@@ -735,10 +724,27 @@ export default function Marketplace() {
   };
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", gap:"16px" }}>
-      <div className="tabs">
-        <button className={`tab-btn ${activeTab==="shop"?"active":""}`}   onClick={()=>setActiveTab("shop")}>🛍️ Shop</button>
-        <button className={`tab-btn ${activeTab==="orders"?"active":""}`} onClick={()=>setActiveTab("orders")}>📦 My Orders</button>
+    <div style={{ display:"flex", flexDirection:"column", gap:"20px" }}>
+      {/* Tabs */}
+      <div style={{ display:"flex", gap:"4px", background:"var(--bg3)", borderRadius:"12px", padding:"4px", width:"fit-content" }}>
+        {[{id:"shop",label:"Shop",icon:"🛍️"},{id:"orders",label:"My Orders",icon:"📦"}].map(t => (
+          <button key={t.id}
+            onClick={() => setActiveTab(t.id)}
+            style={{
+              padding:"8px 20px",
+              borderRadius:"9px",
+              border:"none",
+              cursor:"pointer",
+              fontSize:"13px",
+              fontWeight:600,
+              transition:"all 0.2s",
+              background: activeTab===t.id ? "var(--surface)" : "transparent",
+              color: activeTab===t.id ? "var(--text)" : "var(--text3)",
+              boxShadow: activeTab===t.id ? "0 1px 4px rgba(0,0,0,0.25)" : "none",
+            }}>
+            {t.icon} {t.label}
+          </button>
+        ))}
       </div>
 
       {msg.text && (
@@ -749,30 +755,69 @@ export default function Marketplace() {
       )}
 
       {activeTab === "orders" ? (
-        <div className="card">
-          <h3 className="font-heading" style={{fontSize:"20px",marginBottom:"16px"}}>My Orders</h3>
+        <div className="card" style={{ borderRadius:"16px" }}>
+          <h3 className="font-heading" style={{ fontSize:"22px", marginBottom:"20px", fontWeight:800, letterSpacing:"-0.3px" }}>My Orders</h3>
           <MyOrders token={token} user={user} />
         </div>
       ) : (
         <>
           {user?.role === "client" && <TrainerRecommendedSection token={token} onBuy={handleBuy} />}
 
-          <div className="card" style={{padding:"14px 16px"}}>
-            <div style={{display:"flex",gap:"10px",flexWrap:"wrap",alignItems:"center"}}>
-              <input className="form-input" placeholder="Search products…" value={search}
-                onChange={e=>setSearch(e.target.value)}
-                onKeyDown={e=>e.key==="Enter"&&load()}
-                style={{maxWidth:"220px"}}/>
-              <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
-                {CATEGORIES.map(c=>(
-                  <button key={c.value} className={`btn btn-sm ${category===c.value?"btn-primary":"btn-outline"}`}
-                    onClick={()=>setCategory(c.value)}>
-                    {c.icon} {c.label}
-                  </button>
-                ))}
-              </div>
-              <button className="btn btn-outline btn-sm" onClick={load} style={{marginLeft:"auto"}}>↻</button>
+          <div style={{
+            background:"var(--surface)",
+            border:"1px solid var(--border)",
+            borderRadius:"var(--radius-lg)",
+            padding:"14px 18px",
+            display:"flex",
+            gap:"12px",
+            flexWrap:"wrap",
+            alignItems:"center",
+          }}>
+            <div style={{ position:"relative", flexShrink:0 }}>
+              <span style={{ position:"absolute", left:"10px", top:"50%", transform:"translateY(-50%)", fontSize:"14px", opacity:0.4, pointerEvents:"none" }}>🔍</span>
+              <input
+                className="form-input"
+                placeholder="Search products…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                onKeyDown={e => e.key==="Enter" && load()}
+                style={{ paddingLeft:"34px", maxWidth:"200px", borderRadius:"10px" }}
+              />
             </div>
+            <div style={{ display:"flex", gap:"6px", flexWrap:"wrap", flex:1 }}>
+              {CATEGORIES.map(c => (
+                <button key={c.value}
+                  onClick={() => setCategory(c.value)}
+                  style={{
+                    padding:"7px 14px",
+                    borderRadius:"8px",
+                    border:`1px solid ${category===c.value ? "var(--accent)" : "var(--border)"}`,
+                    background: category===c.value ? "var(--accent)" : "transparent",
+                    color: category===c.value ? "#fff" : "var(--text2)",
+                    fontSize:"12px",
+                    fontWeight:600,
+                    cursor:"pointer",
+                    transition:"all 0.15s",
+                    whiteSpace:"nowrap",
+                  }}>
+                  {c.icon} {c.label}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={load}
+              style={{
+                padding:"7px 12px",
+                borderRadius:"8px",
+                border:"1px solid var(--border)",
+                background:"transparent",
+                color:"var(--text3)",
+                cursor:"pointer",
+                fontSize:"16px",
+                transition:"all 0.15s",
+                marginLeft:"auto",
+              }}
+              title="Refresh">↻</button>
           </div>
 
           {loading ? (

@@ -1,81 +1,148 @@
-import { LiveSession, Trainer, Enrollment, Client } from "../models/index.js";
+// backend/controllers/liveSessionController.js
+const LiveSession = require("../models/LiveSession");
+const Enrollment  = require("../models/Enrollment");
+const Trainer     = require("../models/Trainer");
+const Program     = require("../models/Program");
 
-export const createSession = async (req, res, next) => {
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper — find the Trainer document for the authenticated user
+// ─────────────────────────────────────────────────────────────────────────────
+async function getTrainer(userId) {
+  return Trainer.findOne({ user: userId });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/sessions
+// Trainer creates a session scoped to one of their programs.
+// Body: { programId, title, description?, scheduledAt, durationMinutes?, meetingLink }
+// ─────────────────────────────────────────────────────────────────────────────
+exports.createSession = async (req, res) => {
   try {
-    const trainer = await Trainer.findOne({ user: req.user._id });
-    if (!trainer) return res.status(404).json({ message: "Trainer not found" });
+    const trainer = await getTrainer(req.user._id);
+    if (!trainer) return res.status(403).json({ message: "Trainer profile not found." });
 
-    const { title, description, scheduledAt, durationMinutes, meetingLink, programId, isOpenToAll } = req.body;
-    if (!title || !scheduledAt || !meetingLink)
-      return res.status(400).json({ message: "title, scheduledAt and meetingLink are required" });
+    const { programId, title, scheduledAt, meetingLink, description, durationMinutes } = req.body;
+
+    // ── Validate required fields ──────────────────────────────────────────────
+    if (!programId)    return res.status(400).json({ message: "programId is required." });
+    if (!title)        return res.status(400).json({ message: "title is required." });
+    if (!scheduledAt)  return res.status(400).json({ message: "scheduledAt is required." });
+    if (!meetingLink)  return res.status(400).json({ message: "meetingLink is required." });
+
+    // ── Confirm the program belongs to this trainer ───────────────────────────
+    const program = await Program.findOne({ _id: programId, trainer: trainer._id });
+    if (!program) {
+      return res.status(403).json({ message: "Program not found or does not belong to you." });
+    }
 
     const session = await LiveSession.create({
-      trainer: trainer._id,
-      program: programId || null,
-      title, description,
-      scheduledAt: new Date(scheduledAt),
-      durationMinutes: Number(durationMinutes) || 60,
+      trainer:         trainer._id,
+      program:         programId,
+      title,
+      description:     description || "",
+      scheduledAt:     new Date(scheduledAt),
+      durationMinutes: durationMinutes || 60,
       meetingLink,
-      isOpenToAll: isOpenToAll !== false,
+      isOpenToAll:     false,   // always program-scoped from now on
     });
-    res.status(201).json({ session });
-  } catch (error) { next(error); }
+
+    const populated = await session.populate([
+      { path: "program", select: "title" },
+      { path: "trainer", populate: { path: "user", select: "name" } },
+    ]);
+
+    return res.status(201).json({ session: populated });
+  } catch (err) {
+    console.error("[createSession]", err);
+    return res.status(500).json({ message: "Server error creating session." });
+  }
 };
 
-export const mySessions = async (req, res, next) => {
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/sessions/mine  (trainer)
+// Returns all sessions the trainer created, optionally filtered by programId.
+// Query: ?programId=<id>
+// ─────────────────────────────────────────────────────────────────────────────
+exports.getMySessionsAsTrainer = async (req, res) => {
   try {
-    const trainer = await Trainer.findOne({ user: req.user._id });
-    if (!trainer) return res.json({ sessions: [] });
+    const trainer = await getTrainer(req.user._id);
+    if (!trainer) return res.status(403).json({ message: "Trainer profile not found." });
 
-    const sessions = await LiveSession.find({ trainer: trainer._id })
+    const filter = { trainer: trainer._id };
+    if (req.query.programId) filter.program = req.query.programId;
+
+    const sessions = await LiveSession.find(filter)
+      .sort({ scheduledAt: 1 })
       .populate("program", "title")
-      .sort({ scheduledAt: 1 });
-    res.json({ sessions });
-  } catch (error) { next(error); }
+      .populate({ path: "trainer", populate: { path: "user", select: "name" } });
+
+    return res.json({ sessions });
+  } catch (err) {
+    console.error("[getMySessionsAsTrainer]", err);
+    return res.status(500).json({ message: "Server error." });
+  }
 };
 
-export const deleteSession = async (req, res, next) => {
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/sessions/for-me  (client)
+// Returns sessions for programs the client is actively enrolled in.
+// The meetingLink is included because access has already been verified via
+// enrollment. If the client is not enrolled they simply won't receive
+// any sessions at all.
+// Query: ?programId=<id>  — narrow to one program
+// ─────────────────────────────────────────────────────────────────────────────
+exports.getSessionsForClient = async (req, res) => {
   try {
-    const trainer = await Trainer.findOne({ user: req.user._id });
-    await LiveSession.findOneAndDelete({ _id: req.params.sessionId, trainer: trainer._id });
-    res.json({ message: "Session deleted" });
-  } catch (error) { next(error); }
-};
+    // Find all enrollments for this client (status: active / paid)
+    const enrollmentFilter = {
+      client: req.user.clientProfile,   // ObjectId of the Client doc
+      status: { $in: ["active", "paid", "confirmed"] },
+    };
 
-// Client — ALL sessions (past + future) for their enrolled programs' trainers
-export const clientSessions = async (req, res, next) => {
-  try {
-    const client = await Client.findOne({ user: req.user._id });
-    if (!client) return res.json({ sessions: [] });
+    // Optionally narrow to a single program
+    if (req.query.programId) {
+      enrollmentFilter.program = req.query.programId;
+    }
 
-    const enrollments = await Enrollment.find({ client: client._id, status: "active" });
-    if (!enrollments.length) return res.json({ sessions: [] });
+    const enrollments = await Enrollment.find(enrollmentFilter).select("program");
+    const programIds  = enrollments.map(e => e.program);
 
-    const trainerIds = [...new Set(enrollments.map(e => String(e.trainer)))];
-    const programIds = enrollments.map(e => String(e.program));
+    if (programIds.length === 0) {
+      return res.json({ sessions: [] });
+    }
 
-    // No date filter — return ALL sessions for enrolled trainers
-    // so future sessions always show regardless of how far ahead they are
+    // Fetch sessions for those programs, sorted soonest-first
     const sessions = await LiveSession.find({
-      $or: [
-        { trainer: { $in: trainerIds } },
-        { program: { $in: programIds } },
-      ],
+      program: { $in: programIds },
+      // Show sessions from 1 hour ago onwards (still surfacing recently-started ones)
+      scheduledAt: { $gte: new Date(Date.now() - 60 * 60 * 1000) },
     })
-      .populate({ path: "trainer", populate: { path: "user", select: "name" } })
-      .populate("program", "title")
-      .sort({ scheduledAt: 1 });
+      .sort({ scheduledAt: 1 })
+      .populate("program", "title category")
+      .populate({ path: "trainer", populate: { path: "user", select: "name" } });
 
-    res.json({ sessions });
-  } catch (error) { next(error); }
+    return res.json({ sessions });
+  } catch (err) {
+    console.error("[getSessionsForClient]", err);
+    return res.status(500).json({ message: "Server error." });
+  }
 };
 
-export const programSessions = async (req, res, next) => {
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETE /api/sessions/:id  (trainer)
+// ─────────────────────────────────────────────────────────────────────────────
+exports.deleteSession = async (req, res) => {
   try {
-    // No date filter — return all sessions for this program
-    const sessions = await LiveSession.find({ program: req.params.programId })
-      .populate({ path: "trainer", populate: { path: "user", select: "name" } })
-      .sort({ scheduledAt: 1 });
-    res.json({ sessions });
-  } catch (error) { next(error); }
+    const trainer = await getTrainer(req.user._id);
+    if (!trainer) return res.status(403).json({ message: "Trainer profile not found." });
+
+    const session = await LiveSession.findOne({ _id: req.params.id, trainer: trainer._id });
+    if (!session) return res.status(404).json({ message: "Session not found." });
+
+    await session.deleteOne();
+    return res.json({ message: "Session deleted." });
+  } catch (err) {
+    console.error("[deleteSession]", err);
+    return res.status(500).json({ message: "Server error." });
+  }
 };
