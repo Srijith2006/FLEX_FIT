@@ -125,3 +125,49 @@ export const deleteSession = async (req, res) => {
     return res.status(500).json({ message: "Server error." });
   }
 };
+
+export const getSessionsForProgram = async (req, res) => {
+  try {
+    const { programId } = req.params;
+ 
+    // ── Client access gate ───────────────────────────────────────────────────
+    // If the requester is a client, verify they are enrolled in this program.
+    //
+    // ⚠️  FIELD NAME NOTE:
+    //   - "client" below should match the field on your Enrollment model that
+    //     stores the client's profile ObjectId.
+    //   - "req.user.clientProfile" should match whatever your `protect`
+    //     middleware sets for the logged-in client's profile _id.
+    //
+    //   Common alternatives — change as needed:
+    //     req.user.clientProfile  →  req.user._id  or  req.user.profile
+    //     client: ...             →  user: ...      or  clientId: ...
+    //
+    if (req.user.role === "client") {
+      const enrollment = await Enrollment.findOne({
+        program: programId,
+        client:  req.user.clientProfile,   // ← adjust if your field is named differently
+      });
+ 
+      if (!enrollment) {
+        return res.status(403).json({
+          message: "Access denied. You are not enrolled in this program.",
+        });
+      }
+    }
+ 
+    // ── Fetch sessions for the program ───────────────────────────────────────
+    const sessions = await LiveSession.find({ program: programId })
+      .populate({
+        path:     "trainer",
+        populate: { path: "user", select: "name email" },
+      })
+      .sort({ scheduledAt: 1 });   // upcoming first
+ 
+    return res.json({ sessions });
+ 
+  } catch (err) {
+    console.error("getSessionsForProgram error:", err);
+    return res.status(500).json({ message: "Server error. Please try again." });
+  }
+};
