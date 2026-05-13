@@ -300,15 +300,29 @@ function OverviewPage({ token, pendingTrainers, pendingVendors }) {
 function ClientsPage({ token }) {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState(null);
 
-  useEffect(() => {
-    api.get("/clients/all", { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => setClients(r.data.clients || []))
-      .catch(() => { })
-      .finally(() => setLoading(false));
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const r = await api.get("/clients/all", { headers: { Authorization: `Bearer ${token}` } });
+      // Handle both { clients: [...] } and bare array responses
+      const data = r.data;
+      const list = Array.isArray(data) ? data : (data?.clients || data?.data || []);
+      setClients(list);
+    } catch (e) {
+      const status = e?.response?.status;
+      const msg = e?.response?.data?.message || e?.message || "Unknown error";
+      setError(`${status ? `${status} — ` : ""}${msg}`);
+    } finally {
+      setLoading(false);
+    }
   }, [token]);
+
+  useEffect(() => { load(); }, [load]);
 
   const filtered = clients.filter(c => {
     const q = search.toLowerCase();
@@ -322,19 +336,30 @@ function ClientsPage({ token }) {
     <div>
       <div className="adm-kpi-grid" style={{ gridTemplateColumns: "repeat(3,1fr)", marginBottom: 24 }}>
         <KPICard label="Total Clients" value={clients.length} color="var(--adm-accent)" icon="👥" />
-        <KPICard label="Active This Month" value={clients.filter(c => { const d = c.updatedAt || c.lastActive || c.user?.updatedAt; return d && new Date(d) > new Date(Date.now() - 30 * 864e5); }).length} color="var(--adm-green)" icon="🔥" />
+        <KPICard label="Active This Month" value={clients.filter(c => { const d = c.updatedAt || c.user?.updatedAt; return d && new Date(d) > new Date(Date.now() - 30 * 864e5); }).length} color="var(--adm-green)" icon="🔥" />
         <KPICard label="Active Subscribers" value={clients.filter(c => c.subscriptionActive).length} color="var(--adm-gold)" icon="⭐" />
       </div>
 
       <div className="adm-card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
           <div className="adm-section-title" style={{ margin: 0 }}>All Clients</div>
-          <SearchBar value={search} onChange={setSearch} placeholder="Search by name or email…" />
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <SearchBar value={search} onChange={setSearch} placeholder="Search by name or email…" />
+            <button className="adm-btn adm-btn-ghost" onClick={load} title="Refresh">↻</button>
+          </div>
         </div>
 
+        {/* API error banner — shows the real error message */}
+        {error && (
+          <div className="adm-alert error" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>⚠ API error: {error}</span>
+            <button className="adm-btn adm-btn-ghost" style={{ padding: "4px 10px", fontSize: 11 }} onClick={load}>Retry</button>
+          </div>
+        )}
+
         {loading ? <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{[1, 2, 3].map(i => <Skel key={i} h={48} />)}</div>
-          : filtered.length === 0 ? <EmptyState icon="👤" text="No clients found." />
-            : (
+          : filtered.length === 0 && !error ? <EmptyState icon="👤" text="No clients found." />
+            : !error && (
               <div className="adm-table-wrap">
                 <table className="adm-table">
                   <thead>
@@ -375,9 +400,9 @@ function ClientsPage({ token }) {
                             {c.targetWeight ? <span style={{ color: "var(--adm-text3)" }}> → {c.targetWeight} kg</span> : ""}
                           </span>
                         </td>
-                        <td><span className="adm-mono" style={{ color: "var(--adm-accent)" }}>{c.enrolledPrograms || 0}</span></td>
+                        <td><span className="adm-mono" style={{ color: "var(--adm-accent)" }}>{c.enrolledPrograms ?? 0}</span></td>
                         <td><StatusBadge status={c.subscriptionActive ? "active" : "inactive"} /></td>
-                        <td style={{ fontSize: 12, color: "var(--adm-text2)" }}>{c.phone || c.user?.phone || "—"}</td>
+                        <td style={{ fontSize: 12, color: "var(--adm-text2)" }}>{c.user?.phone || "—"}</td>
                         <td style={{ fontSize: 12 }}>{fmtDate(c.createdAt || c.user?.createdAt)}</td>
                       </tr>
                     ))}
@@ -389,8 +414,11 @@ function ClientsPage({ token }) {
         {/* Expanded row detail */}
         {selected && (
           <div style={{ marginTop: 16, padding: 18, background: "rgba(79,158,255,0.04)", border: "1px solid rgba(79,158,255,0.14)", borderRadius: 12 }}>
-            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, color: "var(--adm-text)" }}>
-              {selected.user?.name} — Client Profile
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ fontWeight: 700, fontSize: 15, color: "var(--adm-text)" }}>
+                {selected.user?.name} — Client Profile
+              </div>
+              <button className="adm-btn adm-btn-ghost" style={{ padding: "3px 10px", fontSize: 11 }} onClick={() => setSelected(null)}>✕ Close</button>
             </div>
             <div className="adm-detail-grid">
               <div className="adm-detail-item"><div className="adm-detail-label">Age</div><div className="adm-detail-val">{selected.age || "—"}</div></div>
@@ -400,12 +428,24 @@ function ClientsPage({ token }) {
               <div className="adm-detail-item"><div className="adm-detail-label">Target Weight</div><div className="adm-detail-val">{selected.targetWeight ? `${selected.targetWeight} kg` : "—"}</div></div>
               <div className="adm-detail-item"><div className="adm-detail-label">Fitness Level</div><div className="adm-detail-val" style={{ textTransform: "capitalize" }}>{selected.fitnessLevel || "—"}</div></div>
               <div className="adm-detail-item"><div className="adm-detail-label">Goal</div><div className="adm-detail-val" style={{ textTransform: "capitalize" }}>{GOAL_LABELS[selected.goalType] || selected.goalType || "—"}</div></div>
-              <div className="adm-detail-item"><div className="adm-detail-label">Workouts/Week</div><div className="adm-detail-val">{selected.workoutsPerWeek || "—"}</div></div>
+              <div className="adm-detail-item"><div className="adm-detail-label">Workouts / Week</div><div className="adm-detail-val">{selected.workoutsPerWeek || "—"}</div></div>
               <div className="adm-detail-item"><div className="adm-detail-label">Subscription</div><div className="adm-detail-val"><StatusBadge status={selected.subscriptionActive ? "active" : "inactive"} /></div></div>
-              <div className="adm-detail-item"><div className="adm-detail-label">Enrolled Programs</div><div className="adm-detail-val" style={{ color: "var(--adm-accent)" }}>{selected.enrolledPrograms || 0}</div></div>
-              <div className="adm-detail-item"><div className="adm-detail-label">Phone</div><div className="adm-detail-val">{selected.phone || selected.user?.phone || "—"}</div></div>
+              <div className="adm-detail-item"><div className="adm-detail-label">Enrolled Programs</div><div className="adm-detail-val" style={{ color: "var(--adm-accent)" }}>{selected.enrolledPrograms ?? 0}</div></div>
+              <div className="adm-detail-item"><div className="adm-detail-label">Phone</div><div className="adm-detail-val">{selected.user?.phone || "—"}</div></div>
               <div className="adm-detail-item"><div className="adm-detail-label">Joined</div><div className="adm-detail-val">{fmtDate(selected.createdAt || selected.user?.createdAt)}</div></div>
             </div>
+            {selected.healthNotes && (
+              <div style={{ marginTop: 12, padding: "10px 14px", background: "rgba(255,255,255,0.02)", borderRadius: 8, fontSize: 12, color: "var(--adm-text2)" }}>
+                <span style={{ color: "var(--adm-text3)", fontFamily: "DM Mono, monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.8px" }}>Health Notes: </span>
+                {selected.healthNotes}
+              </div>
+            )}
+            {selected.injuries && (
+              <div style={{ marginTop: 8, padding: "10px 14px", background: "rgba(248,113,113,0.04)", border: "1px solid rgba(248,113,113,0.1)", borderRadius: 8, fontSize: 12, color: "var(--adm-text2)" }}>
+                <span style={{ color: "var(--adm-red)", fontFamily: "DM Mono, monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.8px" }}>Injuries: </span>
+                {selected.injuries}
+              </div>
+            )}
           </div>
         )}
       </div>
