@@ -1,5 +1,39 @@
 ﻿import { WorkoutCompletion, Enrollment, Client } from "../models/index.js";
 
+// Admin — get all clients with profile + enrollment count + flex points
+export const getAllClients = async (req, res, next) => {
+  try {
+    const clients = await Client.find({})
+      .populate("user", "name email phone createdAt")
+      .sort({ createdAt: -1 });
+
+    // Enrich each client with enrollment count
+    const enriched = await Promise.all(clients.map(async (c) => {
+      const enrollmentCount = await Enrollment.countDocuments({ client: c._id });
+      return {
+        _id:               c._id,
+        user:              c.user,
+        age:               c.age,
+        gender:            c.gender,
+        height:            c.height,
+        currentWeight:     c.currentWeight,
+        targetWeight:      c.targetWeight,
+        goalType:          c.goalType,
+        fitnessLevel:      c.fitnessLevel,
+        workoutsPerWeek:   c.workoutsPerWeek,
+        healthNotes:       c.healthNotes,
+        injuries:          c.injuries,
+        subscriptionActive: c.subscriptionActive,
+        enrolledPrograms:  enrollmentCount,
+        createdAt:         c.createdAt,
+        updatedAt:         c.updatedAt,
+      };
+    }));
+
+    res.json({ clients: enriched });
+  } catch (error) { next(error); }
+};
+
 export const getClientProfile = async (req, res, next) => {
   try {
     const client = await Client.findOne({ user: req.user._id }).populate("user", "name email");

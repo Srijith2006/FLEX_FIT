@@ -191,18 +191,12 @@ function OverviewPage({ token, pendingTrainers, pendingVendors }) {
           api.get("/vendors/all", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { vendors: [] } })),
           api.get("/clients/all", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { clients: [] } })),
         ]);
-        const trainers = tRes.data.trainers || tRes.data.data || (Array.isArray(tRes.data) ? tRes.data : []);
-        const vendors = vRes.data.vendors || vRes.data.data || (Array.isArray(vRes.data) ? vRes.data : []);
-        const cRaw = cRes.data;
-        const clients = Array.isArray(cRaw) ? cRaw
-          : Array.isArray(cRaw?.clients) ? cRaw.clients
-          : Array.isArray(cRaw?.data) ? cRaw.data
-          : Array.isArray(cRaw?.users) ? cRaw.users
-          : [];
-        // Gross revenue = trainer enrollments + vendor orders
-        // Platform takes 15% of gross as its fee
-        const trainerGross = trainers.reduce((s, t) => s + (t.totalRevenue || t.revenue || 0), 0);
-        const vendorGross = vendors.reduce((s, v) => s + (v.totalRevenue || v.revenue || 0), 0);
+        const trainers = tRes.data.trainers || [];
+        const vendors = vRes.data.vendors || [];
+        const clients = cRes.data.clients || [];
+        // totalRevenue is now computed server-side per trainer (enrolledCount × price)
+        const trainerGross = trainers.reduce((s, t) => s + (t.totalRevenue || 0), 0);
+        const vendorGross = vendors.reduce((s, v) => s + (v.totalRevenue || 0), 0);
         const grossRevenue = trainerGross + vendorGross;
         const platformRevenue = Math.round(grossRevenue * 0.15);
         const sortByNewest = arr => [...arr].sort((a, b) => new Date(b.createdAt || b.user?.createdAt || 0) - new Date(a.createdAt || a.user?.createdAt || 0));
@@ -311,16 +305,7 @@ function ClientsPage({ token }) {
 
   useEffect(() => {
     api.get("/clients/all", { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => {
-        // Handle various server response shapes: { clients: [] } or { data: [] } or []
-        const raw = r.data;
-        const list = Array.isArray(raw) ? raw
-          : Array.isArray(raw?.clients) ? raw.clients
-          : Array.isArray(raw?.data) ? raw.data
-          : Array.isArray(raw?.users) ? raw.users
-          : [];
-        setClients(list);
-      })
+      .then(r => setClients(r.data.clients || []))
       .catch(() => { })
       .finally(() => setLoading(false));
   }, [token]);
@@ -444,12 +429,7 @@ function TrainersPage({ token }) {
     setLoading(true);
     try {
       const r = await api.get("/trainers/all", { headers: { Authorization: `Bearer ${token}` } });
-      const raw = r.data;
-      const list = Array.isArray(raw) ? raw
-        : Array.isArray(raw?.trainers) ? raw.trainers
-        : Array.isArray(raw?.data) ? raw.data
-        : [];
-      setTrainers(list);
+      setTrainers(r.data.trainers || []);
     } catch { }
     finally { setLoading(false); }
   }, [token]);
@@ -480,7 +460,7 @@ function TrainersPage({ token }) {
       return !q || (t.user?.name || "").toLowerCase().includes(q) || (t.user?.email || "").toLowerCase().includes(q);
     });
 
-  const totalRevenue = trainers.reduce((s, t) => s + (t.totalRevenue || t.revenue || 0), 0);
+  const totalRevenue = trainers.reduce((s, t) => s + (t.totalRevenue || 0), 0);
   const ratedTrainers = trainers.filter(t => t.avgRating > 0);
   const avgRating = ratedTrainers.length ? (ratedTrainers.reduce((s, t) => s + (t.avgRating || 0), 0) / ratedTrainers.length).toFixed(1) : "—";
 
@@ -550,7 +530,7 @@ function TrainersPage({ token }) {
                           <td><span className="adm-mono">{t.totalClients || 0}</span></td>
                           <td><span className="adm-mono">{t.monthlyCompletions || 0}</span></td>
                           <td><span className="adm-mono" style={{ color: "var(--adm-gold)" }}>{t.avgRating ? Number(t.avgRating).toFixed(1) : "—"}</span></td>
-                          <td><span className="adm-mono" style={{ color: "var(--adm-green)", fontWeight: 600 }}>{fmtINR(t.totalRevenue || t.revenue || 0)}</span></td>
+                          <td><span className="adm-mono" style={{ color: "var(--adm-green)", fontWeight: 600 }}>{fmtINR(t.totalRevenue || 0)}</span></td>
                           <td>
                             {t.certificateUrl
                               ? <a href={`${BASE_URL}${t.certificateUrl}`} target="_blank" rel="noreferrer" className="adm-cert-link" onClick={e => e.stopPropagation()}>📎 View</a>
@@ -573,15 +553,15 @@ function TrainersPage({ token }) {
                                 <div style={{ fontWeight: 700, marginBottom: 10 }}>{t.user?.name} — Full Profile</div>
                                 {t.bio && <p style={{ fontSize: 13, color: "var(--adm-text2)", marginBottom: 10 }}>{t.bio}</p>}
                                 <div className="adm-detail-grid">
-                                  <div className="adm-detail-item"><div className="adm-detail-label">Specialties</div><div className="adm-detail-val">{t.specialties?.join(", ") || "—"}</div></div>
-                                  <div className="adm-detail-item"><div className="adm-detail-label">Experience</div><div className="adm-detail-val">{t.experience ? `${t.experience} yrs` : "—"}</div></div>
+                                  <div className="adm-detail-item"><div className="adm-detail-label">Specialties</div><div className="adm-detail-val">{(t.specialties || t.specialization)?.join(", ") || "—"}</div></div>
+                                  <div className="adm-detail-item"><div className="adm-detail-label">Experience</div><div className="adm-detail-val">{(t.experience || t.yearsOfExperience) ? `${t.experience || t.yearsOfExperience} yrs` : "—"}</div></div>
                                   <div className="adm-detail-item"><div className="adm-detail-label">Phone</div><div className="adm-detail-val">{t.phone || t.user?.phone || "—"}</div></div>
                                   <div className="adm-detail-item"><div className="adm-detail-label">City</div><div className="adm-detail-val">{t.city || "—"}</div></div>
                                   <div className="adm-detail-item"><div className="adm-detail-label">Total Programs</div><div className="adm-detail-val" style={{ color: "var(--adm-accent)" }}>{t.totalPrograms || 0}</div></div>
                                   <div className="adm-detail-item"><div className="adm-detail-label">Active Clients</div><div className="adm-detail-val">{t.totalClients || 0}</div></div>
                                   <div className="adm-detail-item"><div className="adm-detail-label">Monthly Completions</div><div className="adm-detail-val">{t.monthlyCompletions || 0}</div></div>
                                   <div className="adm-detail-item"><div className="adm-detail-label">Avg Rating</div><div className="adm-detail-val" style={{ color: "var(--adm-gold)" }}>{t.avgRating ? `${Number(t.avgRating).toFixed(1)} / 5` : "—"}</div></div>
-                                  <div className="adm-detail-item"><div className="adm-detail-label">Total Revenue</div><div className="adm-detail-val" style={{ color: "var(--adm-green)" }}>{fmtINR(t.totalRevenue)}</div></div>
+                                  <div className="adm-detail-item"><div className="adm-detail-label">Total Revenue</div><div className="adm-detail-val" style={{ color: "var(--adm-green)" }}>{fmtINR(t.totalRevenue || 0)}</div></div>
                                   <div className="adm-detail-item"><div className="adm-detail-label">Joined</div><div className="adm-detail-val">{fmtDate(t.createdAt || t.user?.createdAt)}</div></div>
                                 </div>
                               </div>
@@ -617,12 +597,7 @@ function VendorsPage({ token }) {
     setLoading(true);
     try {
       const r = await api.get("/vendors/all", { headers: { Authorization: `Bearer ${token}` } });
-      const raw = r.data;
-      const list = Array.isArray(raw) ? raw
-        : Array.isArray(raw?.vendors) ? raw.vendors
-        : Array.isArray(raw?.data) ? raw.data
-        : [];
-      setVendors(list);
+      setVendors(r.data.vendors || []);
     } catch { }
     finally { setLoading(false); }
   }, [token]);
@@ -808,11 +783,8 @@ function VerificationPage({ token, onRefreshCounts }) {
         api.get("/trainers/all", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { trainers: [] } })),
         api.get("/vendors/all", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { vendors: [] } })),
       ]);
-      const tRaw = tRes.data; const vRaw = vRes.data;
-      const tList = Array.isArray(tRaw) ? tRaw : (tRaw?.trainers || tRaw?.data || []);
-      const vList = Array.isArray(vRaw) ? vRaw : (vRaw?.vendors || vRaw?.data || []);
-      setTrainers(tList.filter(t => t.verificationStatus === "pending"));
-      setVendors(vList.filter(v => v.verificationStatus === "pending"));
+      setTrainers((tRes.data.trainers || []).filter(t => t.verificationStatus === "pending"));
+      setVendors((vRes.data.vendors || []).filter(v => v.verificationStatus === "pending"));
     } catch { }
     finally { setLoading(false); }
   }, [token]);
@@ -870,8 +842,8 @@ function VerificationPage({ token, onRefreshCounts }) {
                             <div style={{ fontSize: 12, color: "var(--adm-text3)", marginTop: 2 }}>{t.user?.email}</div>
                             {t.bio && <div style={{ fontSize: 12, color: "var(--adm-text2)", marginTop: 6, maxWidth: 480 }}>{t.bio}</div>}
                             <div className="adm-detail-grid" style={{ marginTop: 10, gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))" }}>
-                              {t.specialties?.length > 0 && <div className="adm-detail-item"><div className="adm-detail-label">Specialties</div><div className="adm-detail-val" style={{ fontSize: 12 }}>{t.specialties.join(", ")}</div></div>}
-                              {t.experience && <div className="adm-detail-item"><div className="adm-detail-label">Experience</div><div className="adm-detail-val">{t.experience} yrs</div></div>}
+                              {(t.specialties || t.specialization)?.length > 0 && <div className="adm-detail-item"><div className="adm-detail-label">Specialties</div><div className="adm-detail-val" style={{ fontSize: 12 }}>{(t.specialties || t.specialization).join(", ")}</div></div>}
+                              {(t.experience || t.yearsOfExperience) > 0 && <div className="adm-detail-item"><div className="adm-detail-label">Experience</div><div className="adm-detail-val">{t.experience || t.yearsOfExperience} yrs</div></div>}
                               {t.city && <div className="adm-detail-item"><div className="adm-detail-label">City</div><div className="adm-detail-val">{t.city}</div></div>}
                             </div>
                             <div style={{ marginTop: 10 }}>
@@ -956,11 +928,10 @@ function RevenuePage({ token }) {
           api.get("/trainers/all", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { trainers: [] } })),
           api.get("/vendors/all", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { vendors: [] } })),
         ]);
-        const allTrainers = tRes.data.trainers || tRes.data.data || (Array.isArray(tRes.data) ? tRes.data : []);
-        const allVendors = vRes.data.vendors || vRes.data.data || (Array.isArray(vRes.data) ? vRes.data : []);
-        // Use totalRevenue or fallback to revenue field
-        const getTrainerRev = t => t.totalRevenue || t.revenue || 0;
-        const getVendorRev = v => v.totalRevenue || v.revenue || 0;
+        const allTrainers = tRes.data.trainers || [];
+        const allVendors = vRes.data.vendors || [];
+        const getTrainerRev = t => t.totalRevenue || 0;
+        const getVendorRev = v => v.totalRevenue || 0;
         const trainers = allTrainers.filter(t => getTrainerRev(t) > 0).sort((a, b) => getTrainerRev(b) - getTrainerRev(a));
         const vendors = allVendors.filter(v => getVendorRev(v) > 0).sort((a, b) => getVendorRev(b) - getVendorRev(a));
         const trainerTotal = allTrainers.reduce((s, t) => s + getTrainerRev(t), 0);
@@ -1066,12 +1037,9 @@ export default function AdminDashboard() {
         api.get("/trainers/all", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { trainers: [] } })),
         api.get("/vendors/all", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { vendors: [] } })),
       ]);
-      const tRaw = tRes.data; const vRaw = vRes.data;
-      const tList = Array.isArray(tRaw) ? tRaw : (tRaw?.trainers || tRaw?.data || []);
-      const vList = Array.isArray(vRaw) ? vRaw : (vRaw?.vendors || vRaw?.data || []);
       setPendingCounts({
-        trainers: tList.filter(t => t.verificationStatus === "pending").length,
-        vendors: vList.filter(v => v.verificationStatus === "pending").length,
+        trainers: (tRes.data.trainers || []).filter(t => t.verificationStatus === "pending").length,
+        vendors: (vRes.data.vendors || []).filter(v => v.verificationStatus === "pending").length,
       });
     } catch { }
   }, [token]);

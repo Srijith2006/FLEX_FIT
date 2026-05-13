@@ -10,12 +10,54 @@ export const listTrainers = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-// Admin — all trainers
+// Admin — all trainers enriched with computed stats
 export const listAllTrainers = async (req, res, next) => {
   try {
     const trainers = await Trainer.find({})
-      .populate("user", "name email").sort({ createdAt: -1 });
-    res.json({ trainers });
+      .populate("user", "name email phone createdAt")
+      .sort({ createdAt: -1 });
+
+    // Enrich each trainer with live stats from programs
+    const enriched = await Promise.all(trainers.map(async (t) => {
+      const programs = await Program.find({ trainer: t._id });
+      const totalPrograms = programs.length;
+      const totalRevenue  = programs.reduce((s, p) => s + (p.enrolledCount || 0) * (p.price || 0), 0);
+      const totalClients  = programs.reduce((s, p) => s + (p.enrolledCount || 0), 0);
+
+      // Monthly completions
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1); startOfMonth.setHours(0, 0, 0, 0);
+      const programIds = programs.map(p => p._id);
+      const monthlyCompletions = programIds.length
+        ? await WorkoutCompletion.countDocuments({ program: { $in: programIds }, createdAt: { $gte: startOfMonth } })
+        : 0;
+
+      return {
+        _id:                t._id,
+        user:               t.user,
+        bio:                t.bio,
+        specialties:        t.specialization,   // frontend expects "specialties"
+        specialization:     t.specialization,
+        experience:         t.yearsOfExperience, // frontend expects "experience"
+        yearsOfExperience:  t.yearsOfExperience,
+        city:               t.city,
+        phone:              t.phone,
+        verificationStatus: t.verificationStatus,
+        certificateUrl:     t.certificateUrl,
+        rejectionReason:    t.rejectionReason,
+        avgRating:          t.avgRating,
+        totalRatings:       t.totalRatings,
+        // Computed stats
+        totalPrograms,
+        totalRevenue,
+        totalClients,
+        monthlyCompletions,
+        createdAt:          t.createdAt,
+        updatedAt:          t.updatedAt,
+      };
+    }));
+
+    res.json({ trainers: enriched });
   } catch (error) { next(error); }
 };
 
