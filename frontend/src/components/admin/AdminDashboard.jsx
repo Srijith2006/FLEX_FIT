@@ -191,11 +191,20 @@ function OverviewPage({ token, pendingTrainers, pendingVendors }) {
           api.get("/vendors/all", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { vendors: [] } })),
           api.get("/clients/all", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { clients: [] } })),
         ]);
-        const trainers = tRes.data.trainers || [];
-        const vendors = vRes.data.vendors || [];
-        const clients = cRes.data.clients || [];
-        const totalRevenue = trainers.reduce((s, t) => s + (t.totalRevenue || 0), 0)
-          + vendors.reduce((s, v) => s + (v.totalRevenue || 0), 0);
+        const trainers = tRes.data.trainers || tRes.data.data || (Array.isArray(tRes.data) ? tRes.data : []);
+        const vendors = vRes.data.vendors || vRes.data.data || (Array.isArray(vRes.data) ? vRes.data : []);
+        const cRaw = cRes.data;
+        const clients = Array.isArray(cRaw) ? cRaw
+          : Array.isArray(cRaw?.clients) ? cRaw.clients
+          : Array.isArray(cRaw?.data) ? cRaw.data
+          : Array.isArray(cRaw?.users) ? cRaw.users
+          : [];
+        // Gross revenue = trainer enrollments + vendor orders
+        // Platform takes 15% of gross as its fee
+        const trainerGross = trainers.reduce((s, t) => s + (t.totalRevenue || t.revenue || 0), 0);
+        const vendorGross = vendors.reduce((s, v) => s + (v.totalRevenue || v.revenue || 0), 0);
+        const grossRevenue = trainerGross + vendorGross;
+        const platformRevenue = Math.round(grossRevenue * 0.15);
         const sortByNewest = arr => [...arr].sort((a, b) => new Date(b.createdAt || b.user?.createdAt || 0) - new Date(a.createdAt || a.user?.createdAt || 0));
         setStats({
           totalTrainers: trainers.length,
@@ -203,7 +212,7 @@ function OverviewPage({ token, pendingTrainers, pendingVendors }) {
           totalVendors: vendors.length,
           approvedVendors: vendors.filter(v => v.verificationStatus === "approved").length,
           totalClients: clients.length,
-          totalRevenue,
+          trainerGross, vendorGross, grossRevenue, platformRevenue,
           recentTrainers: sortByNewest(trainers).slice(0, 5),
           recentVendors: sortByNewest(vendors).slice(0, 5),
         });
@@ -225,7 +234,7 @@ function OverviewPage({ token, pendingTrainers, pendingVendors }) {
         <KPICard label="Total Clients" value={stats?.totalClients ?? 0} color="var(--adm-accent)" icon="👤" />
         <KPICard label="Active Trainers" value={`${stats?.approvedTrainers ?? 0} / ${stats?.totalTrainers ?? 0}`} color="var(--adm-green)" icon="💪" />
         <KPICard label="Active Vendors" value={`${stats?.approvedVendors ?? 0} / ${stats?.totalVendors ?? 0}`} color="var(--adm-purple)" icon="🏪" />
-        <KPICard label="Total Platform Revenue" value={fmtINR(stats?.totalRevenue)} color="var(--adm-gold)" icon="💰" />
+        <KPICard label="Platform Revenue (15%)" value={fmtINR(stats?.platformRevenue)} color="var(--adm-gold)" icon="💰" />
       </div>
 
       {(pendingTrainers > 0 || pendingVendors > 0) && (
@@ -302,7 +311,16 @@ function ClientsPage({ token }) {
 
   useEffect(() => {
     api.get("/clients/all", { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => setClients(r.data.clients || []))
+      .then(r => {
+        // Handle various server response shapes: { clients: [] } or { data: [] } or []
+        const raw = r.data;
+        const list = Array.isArray(raw) ? raw
+          : Array.isArray(raw?.clients) ? raw.clients
+          : Array.isArray(raw?.data) ? raw.data
+          : Array.isArray(raw?.users) ? raw.users
+          : [];
+        setClients(list);
+      })
       .catch(() => { })
       .finally(() => setLoading(false));
   }, [token]);
@@ -426,7 +444,12 @@ function TrainersPage({ token }) {
     setLoading(true);
     try {
       const r = await api.get("/trainers/all", { headers: { Authorization: `Bearer ${token}` } });
-      setTrainers(r.data.trainers || []);
+      const raw = r.data;
+      const list = Array.isArray(raw) ? raw
+        : Array.isArray(raw?.trainers) ? raw.trainers
+        : Array.isArray(raw?.data) ? raw.data
+        : [];
+      setTrainers(list);
     } catch { }
     finally { setLoading(false); }
   }, [token]);
@@ -457,7 +480,7 @@ function TrainersPage({ token }) {
       return !q || (t.user?.name || "").toLowerCase().includes(q) || (t.user?.email || "").toLowerCase().includes(q);
     });
 
-  const totalRevenue = trainers.reduce((s, t) => s + (t.totalRevenue || 0), 0);
+  const totalRevenue = trainers.reduce((s, t) => s + (t.totalRevenue || t.revenue || 0), 0);
   const ratedTrainers = trainers.filter(t => t.avgRating > 0);
   const avgRating = ratedTrainers.length ? (ratedTrainers.reduce((s, t) => s + (t.avgRating || 0), 0) / ratedTrainers.length).toFixed(1) : "—";
 
@@ -527,7 +550,7 @@ function TrainersPage({ token }) {
                           <td><span className="adm-mono">{t.totalClients || 0}</span></td>
                           <td><span className="adm-mono">{t.monthlyCompletions || 0}</span></td>
                           <td><span className="adm-mono" style={{ color: "var(--adm-gold)" }}>{t.avgRating ? Number(t.avgRating).toFixed(1) : "—"}</span></td>
-                          <td><span className="adm-mono" style={{ color: "var(--adm-green)", fontWeight: 600 }}>{fmtINR(t.totalRevenue)}</span></td>
+                          <td><span className="adm-mono" style={{ color: "var(--adm-green)", fontWeight: 600 }}>{fmtINR(t.totalRevenue || t.revenue || 0)}</span></td>
                           <td>
                             {t.certificateUrl
                               ? <a href={`${BASE_URL}${t.certificateUrl}`} target="_blank" rel="noreferrer" className="adm-cert-link" onClick={e => e.stopPropagation()}>📎 View</a>
@@ -594,7 +617,12 @@ function VendorsPage({ token }) {
     setLoading(true);
     try {
       const r = await api.get("/vendors/all", { headers: { Authorization: `Bearer ${token}` } });
-      setVendors(r.data.vendors || []);
+      const raw = r.data;
+      const list = Array.isArray(raw) ? raw
+        : Array.isArray(raw?.vendors) ? raw.vendors
+        : Array.isArray(raw?.data) ? raw.data
+        : [];
+      setVendors(list);
     } catch { }
     finally { setLoading(false); }
   }, [token]);
@@ -780,8 +808,11 @@ function VerificationPage({ token, onRefreshCounts }) {
         api.get("/trainers/all", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { trainers: [] } })),
         api.get("/vendors/all", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { vendors: [] } })),
       ]);
-      setTrainers((tRes.data.trainers || []).filter(t => t.verificationStatus === "pending"));
-      setVendors((vRes.data.vendors || []).filter(v => v.verificationStatus === "pending"));
+      const tRaw = tRes.data; const vRaw = vRes.data;
+      const tList = Array.isArray(tRaw) ? tRaw : (tRaw?.trainers || tRaw?.data || []);
+      const vList = Array.isArray(vRaw) ? vRaw : (vRaw?.vendors || vRaw?.data || []);
+      setTrainers(tList.filter(t => t.verificationStatus === "pending"));
+      setVendors(vList.filter(v => v.verificationStatus === "pending"));
     } catch { }
     finally { setLoading(false); }
   }, [token]);
@@ -925,11 +956,18 @@ function RevenuePage({ token }) {
           api.get("/trainers/all", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { trainers: [] } })),
           api.get("/vendors/all", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { vendors: [] } })),
         ]);
-        const trainers = (tRes.data.trainers || []).filter(t => t.totalRevenue > 0).sort((a, b) => b.totalRevenue - a.totalRevenue);
-        const vendors = (vRes.data.vendors || []).filter(v => v.totalRevenue > 0).sort((a, b) => b.totalRevenue - a.totalRevenue);
-        const trainerTotal = trainers.reduce((s, t) => s + (t.totalRevenue || 0), 0);
-        const vendorTotal = vendors.reduce((s, v) => s + (v.totalRevenue || 0), 0);
-        setData({ trainers, vendors, trainerTotal, vendorTotal });
+        const allTrainers = tRes.data.trainers || tRes.data.data || (Array.isArray(tRes.data) ? tRes.data : []);
+        const allVendors = vRes.data.vendors || vRes.data.data || (Array.isArray(vRes.data) ? vRes.data : []);
+        // Use totalRevenue or fallback to revenue field
+        const getTrainerRev = t => t.totalRevenue || t.revenue || 0;
+        const getVendorRev = v => v.totalRevenue || v.revenue || 0;
+        const trainers = allTrainers.filter(t => getTrainerRev(t) > 0).sort((a, b) => getTrainerRev(b) - getTrainerRev(a));
+        const vendors = allVendors.filter(v => getVendorRev(v) > 0).sort((a, b) => getVendorRev(b) - getVendorRev(a));
+        const trainerTotal = allTrainers.reduce((s, t) => s + getTrainerRev(t), 0);
+        const vendorTotal = allVendors.reduce((s, v) => s + getVendorRev(v), 0);
+        const grossTotal = trainerTotal + vendorTotal;
+        const platformTotal = Math.round(grossTotal * 0.15);
+        setData({ trainers, vendors, trainerTotal, vendorTotal, grossTotal, platformTotal, getTrainerRev, getVendorRev });
       } catch { }
       finally { setLoading(false); }
     })();
@@ -937,14 +975,18 @@ function RevenuePage({ token }) {
 
   if (loading) return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{[1, 2, 3].map(i => <Skel key={i} h={80} />)}</div>;
 
-  const grandTotal = (data?.trainerTotal || 0) + (data?.vendorTotal || 0);
+  const grandTotal = data?.grossTotal || 0;
+  const platformCut = data?.platformTotal || 0;
 
   return (
     <div>
       <div className="adm-kpi-grid" style={{ gridTemplateColumns: "repeat(3,1fr)", marginBottom: 24 }}>
-        <KPICard label="Platform Revenue" value={fmtINR(grandTotal)} color="var(--adm-gold)" icon="💰" />
-        <KPICard label="Trainer Revenue" value={fmtINR(data?.trainerTotal)} color="var(--adm-green)" icon="💪" />
-        <KPICard label="Vendor Revenue" value={fmtINR(data?.vendorTotal)} color="var(--adm-purple)" icon="🏪" />
+        <KPICard label="Platform Revenue (15%)" value={fmtINR(platformCut)} color="var(--adm-gold)" icon="💰" />
+        <KPICard label="Trainer Gross Revenue" value={fmtINR(data?.trainerTotal)} color="var(--adm-green)" icon="💪" />
+        <KPICard label="Vendor Gross Revenue" value={fmtINR(data?.vendorTotal)} color="var(--adm-purple)" icon="🏪" />
+      </div>
+      <div style={{ marginBottom: 16, padding: "10px 16px", background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.15)", borderRadius: 10, fontSize: 12, color: "var(--adm-text2)" }}>
+        💡 <strong style={{ color: "var(--adm-gold)" }}>Total Gross Transacted:</strong> {fmtINR(grandTotal)} — Platform earns 15% ({fmtINR(platformCut)}) from all transactions.
       </div>
 
       <div className="adm-grid-2">
@@ -968,7 +1010,7 @@ function RevenuePage({ token }) {
                     </td>
                     <td><span className="adm-mono">{t.totalPrograms || 0}</span></td>
                     <td><span className="adm-mono">{t.totalClients || 0}</span></td>
-                    <td><span className="adm-mono" style={{ color: "var(--adm-green)", fontWeight: 700 }}>{fmtINR(t.totalRevenue)}</span></td>
+                    <td><span className="adm-mono" style={{ color: "var(--adm-green)", fontWeight: 700 }}>{fmtINR(data?.getTrainerRev ? data.getTrainerRev(t) : (t.totalRevenue || t.revenue || 0))}</span></td>
                   </tr>
                 ))}
               </tbody>
@@ -996,7 +1038,7 @@ function RevenuePage({ token }) {
                     </td>
                     <td><span className="adm-mono">{v.totalOrders || 0}</span></td>
                     <td><span className="adm-mono">{v.totalProducts || 0}</span></td>
-                    <td><span className="adm-mono" style={{ color: "var(--adm-gold)", fontWeight: 700 }}>{fmtINR(v.totalRevenue)}</span></td>
+                    <td><span className="adm-mono" style={{ color: "var(--adm-gold)", fontWeight: 700 }}>{fmtINR(data?.getVendorRev ? data.getVendorRev(v) : (v.totalRevenue || v.revenue || 0))}</span></td>
                   </tr>
                 ))}
               </tbody>
@@ -1024,9 +1066,12 @@ export default function AdminDashboard() {
         api.get("/trainers/all", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { trainers: [] } })),
         api.get("/vendors/all", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { vendors: [] } })),
       ]);
+      const tRaw = tRes.data; const vRaw = vRes.data;
+      const tList = Array.isArray(tRaw) ? tRaw : (tRaw?.trainers || tRaw?.data || []);
+      const vList = Array.isArray(vRaw) ? vRaw : (vRaw?.vendors || vRaw?.data || []);
       setPendingCounts({
-        trainers: (tRes.data.trainers || []).filter(t => t.verificationStatus === "pending").length,
-        vendors: (vRes.data.vendors || []).filter(v => v.verificationStatus === "pending").length,
+        trainers: tList.filter(t => t.verificationStatus === "pending").length,
+        vendors: vList.filter(v => v.verificationStatus === "pending").length,
       });
     } catch { }
   }, [token]);
