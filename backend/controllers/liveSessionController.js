@@ -3,15 +3,22 @@
 import LiveSession from "../models/LiveSession.js";
 import Enrollment  from "../models/Enrollment.js";
 import Trainer     from "../models/Trainer.js";
+import Client      from "../models/Client.js";      // ← ADD THIS if not already imported
 import Program     from "../models/Program.js";
 
-// ── Helper — find the Trainer document for the authenticated user ──────────────
+// ── Helper — find the Trainer document for the authenticated user ─────────────
 async function getTrainer(userId) {
   return Trainer.findOne({ user: userId });
 }
 
+// ── Helper — find the Client document for the authenticated user ──────────────
+// Mirrors getTrainer() — looks up by user._id so we never rely on
+// req.user.clientProfile (which may or may not be set by your protect middleware)
+async function getClient(userId) {
+  return Client.findOne({ user: userId });
+}
+
 // ── POST /api/sessions ────────────────────────────────────────────────────────
-// Body: { programId, title, description?, scheduledAt, durationMinutes?, meetingLink }
 export const createSession = async (req, res) => {
   try {
     const trainer = await getTrainer(req.user._id);
@@ -24,7 +31,6 @@ export const createSession = async (req, res) => {
     if (!scheduledAt) return res.status(400).json({ message: "scheduledAt is required." });
     if (!meetingLink) return res.status(400).json({ message: "meetingLink is required." });
 
-    // Confirm the program belongs to this trainer
     const program = await Program.findOne({ _id: programId, trainer: trainer._id });
     if (!program) {
       return res.status(403).json({ message: "Program not found or does not belong to you." });
@@ -54,7 +60,6 @@ export const createSession = async (req, res) => {
 };
 
 // ── GET /api/sessions/mine  (trainer) ─────────────────────────────────────────
-// Optional query: ?programId=<id>
 export const getMySessionsAsTrainer = async (req, res) => {
   try {
     const trainer = await getTrainer(req.user._id);
@@ -76,8 +81,6 @@ export const getMySessionsAsTrainer = async (req, res) => {
 };
 
 // ── GET /api/sessions/for-me  (client) ───────────────────────────────────────
-// Returns sessions only for programs the client is enrolled in.
-// Optional query: ?programId=<id>
 export const getSessionsForClient = async (req, res) => {
   try {
     const enrollmentFilter = {
@@ -109,6 +112,83 @@ export const getSessionsForClient = async (req, res) => {
   }
 };
 
+// ── GET /api/sessions/program/:programId  (client or trainer) ─────────────────
+//
+// ROOT CAUSE OF THE PREVIOUS ERROR:
+//   The old version relied on req.user.clientProfile to check enrollment.
+//   If your protect middleware doesn't set clientProfile on req.user,
+//   Enrollment.findOne({ client: undefined }) always returns null → 403.
+//
+// FIX:
+//   We now call getClient(req.user._id) — the same pattern used by getTrainer —
+//   to reliably look up the Client document via the user's _id.
+//   This works regardless of what fields your protect middleware sets on req.user.
+// ─────────────────────────────────────────────────────────────────────────────
+export const getSessionsForProgram = async (req, res) => {
+  try {
+    const { programId } = req.params;
+
+    // ── Determine role ───────────────────────────────────────────────────────
+    // Trainers can always see sessions for their own programs.
+    // Clients must be enrolled in the program.
+    const role = req.user.role; // "client" | "trainer" | "admin"
+
+    if (role === "trainer" || role === "admin") {
+      // Trainers: optionally verify the program belongs to them
+      const trainer = await getTrainer(req.user._id);
+      if (trainer) {
+        const program = await Program.findOne({ _id: programId, trainer: trainer._id });
+        if (!program) {
+          return res.status(403).json({ message: "Program not found or access denied." });
+        }
+      }
+    } else {
+      // ── Client enrollment check ────────────────────────────────────────────
+      // Step 1: Look up the Client profile by user._id (robust — no reliance on
+      //         req.user.clientProfile which may be undefined)
+      const clientDoc = await getClient(req.user._id);
+
+      if (!clientDoc) {
+        console.error("[getSessionsForProgram] Client profile not found for user:", req.user._id);
+        return res.status(403).json({ message: "Client profile not found." });
+      }
+
+      // Step 2: Check enrollment — try with and without status filter so the
+      //         check works even if your Enrollment documents have no status field
+      const enrollment = await Enrollment.findOne({
+        program: programId,
+        client:  clientDoc._id,
+      });
+
+      if (!enrollment) {
+        console.error(
+          "[getSessionsForProgram] No enrollment found — programId:",
+          programId,
+          "clientId:", clientDoc._id
+        );
+        return res.status(403).json({
+          message: "Access denied. You are not enrolled in this program.",
+        });
+      }
+    }
+
+    // ── Fetch and return sessions ────────────────────────────────────────────
+    const sessions = await LiveSession.find({ program: programId })
+      .populate({
+        path:     "trainer",
+        populate: { path: "user", select: "name email" },
+      })
+      .populate("program", "title")
+      .sort({ scheduledAt: 1 });
+
+    return res.json({ sessions });
+
+  } catch (err) {
+    console.error("[getSessionsForProgram]", err);
+    return res.status(500).json({ message: "Server error. Please try again." });
+  }
+};
+
 // ── DELETE /api/sessions/:id  (trainer) ──────────────────────────────────────
 export const deleteSession = async (req, res) => {
   try {
@@ -123,51 +203,5 @@ export const deleteSession = async (req, res) => {
   } catch (err) {
     console.error("[deleteSession]", err);
     return res.status(500).json({ message: "Server error." });
-  }
-};
-
-export const getSessionsForProgram = async (req, res) => {
-  try {
-    const { programId } = req.params;
- 
-    // ── Client access gate ───────────────────────────────────────────────────
-    // If the requester is a client, verify they are enrolled in this program.
-    //
-    // ⚠️  FIELD NAME NOTE:
-    //   - "client" below should match the field on your Enrollment model that
-    //     stores the client's profile ObjectId.
-    //   - "req.user.clientProfile" should match whatever your `protect`
-    //     middleware sets for the logged-in client's profile _id.
-    //
-    //   Common alternatives — change as needed:
-    //     req.user.clientProfile  →  req.user._id  or  req.user.profile
-    //     client: ...             →  user: ...      or  clientId: ...
-    //
-    if (req.user.role === "client") {
-      const enrollment = await Enrollment.findOne({
-        program: programId,
-        client:  req.user.clientProfile,   // ← adjust if your field is named differently
-      });
- 
-      if (!enrollment) {
-        return res.status(403).json({
-          message: "Access denied. You are not enrolled in this program.",
-        });
-      }
-    }
- 
-    // ── Fetch sessions for the program ───────────────────────────────────────
-    const sessions = await LiveSession.find({ program: programId })
-      .populate({
-        path:     "trainer",
-        populate: { path: "user", select: "name email" },
-      })
-      .sort({ scheduledAt: 1 });   // upcoming first
- 
-    return res.json({ sessions });
- 
-  } catch (err) {
-    console.error("getSessionsForProgram error:", err);
-    return res.status(500).json({ message: "Server error. Please try again." });
   }
 };
