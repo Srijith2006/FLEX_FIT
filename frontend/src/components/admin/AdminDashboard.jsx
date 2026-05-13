@@ -196,6 +196,7 @@ function OverviewPage({ token, pendingTrainers, pendingVendors }) {
         const clients = cRes.data.clients || [];
         const totalRevenue = trainers.reduce((s, t) => s + (t.totalRevenue || 0), 0)
           + vendors.reduce((s, v) => s + (v.totalRevenue || 0), 0);
+        const sortByNewest = arr => [...arr].sort((a, b) => new Date(b.createdAt || b.user?.createdAt || 0) - new Date(a.createdAt || a.user?.createdAt || 0));
         setStats({
           totalTrainers: trainers.length,
           approvedTrainers: trainers.filter(t => t.verificationStatus === "approved").length,
@@ -203,8 +204,8 @@ function OverviewPage({ token, pendingTrainers, pendingVendors }) {
           approvedVendors: vendors.filter(v => v.verificationStatus === "approved").length,
           totalClients: clients.length,
           totalRevenue,
-          recentTrainers: trainers.slice(0, 5),
-          recentVendors: vendors.slice(0, 5),
+          recentTrainers: sortByNewest(trainers).slice(0, 5),
+          recentVendors: sortByNewest(vendors).slice(0, 5),
         });
       } catch { }
       finally { setLoading(false); }
@@ -311,13 +312,14 @@ function ClientsPage({ token }) {
     return !q || (c.user?.name || "").toLowerCase().includes(q) || (c.user?.email || "").toLowerCase().includes(q);
   });
 
-  const GOAL_COLORS = { lose: "#ef4444", gain: "#34d399", maintain: "#4f9eff", endurance: "#fbbf24", flexibility: "#a78bfa" };
+  const GOAL_COLORS = { lose: "#ef4444", gain: "#10b981", maintain: "#0070f3", endurance: "#f59e0b", flexibility: "#8b5cf6" };
+  const GOAL_LABELS = { lose: "Weight Loss", gain: "Muscle Gain", maintain: "Maintenance", endurance: "Endurance", flexibility: "Flexibility" };
 
   return (
     <div>
       <div className="adm-kpi-grid" style={{ gridTemplateColumns: "repeat(3,1fr)", marginBottom: 24 }}>
         <KPICard label="Total Clients" value={clients.length} color="var(--adm-accent)" icon="👥" />
-        <KPICard label="Active This Month" value={clients.filter(c => c.lastActive && new Date(c.lastActive) > new Date(Date.now() - 30 * 864e5)).length} color="var(--adm-green)" icon="🔥" />
+        <KPICard label="Active This Month" value={clients.filter(c => { const d = c.updatedAt || c.lastActive || c.user?.updatedAt; return d && new Date(d) > new Date(Date.now() - 30 * 864e5); }).length} color="var(--adm-green)" icon="🔥" />
         <KPICard label="Avg Flex Points" value={clients.length ? Math.round(clients.reduce((s, c) => s + (c.flexPoints || 0), 0) / clients.length).toLocaleString() : 0} color="var(--adm-gold)" icon="⭐" />
       </div>
 
@@ -338,8 +340,9 @@ function ClientsPage({ token }) {
                       <th>Goal</th>
                       <th>Fitness Level</th>
                       <th>Weight</th>
-                      <th>Enrolled Programs</th>
+                      <th>Programs</th>
                       <th>Flex Points</th>
+                      <th>Phone</th>
                       <th>Joined</th>
                     </tr>
                   </thead>
@@ -358,7 +361,7 @@ function ClientsPage({ token }) {
                         <td>
                           {c.goalType ? (
                             <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 5, background: `${GOAL_COLORS[c.goalType] || "#666"}18`, color: GOAL_COLORS[c.goalType] || "var(--adm-text2)" }}>
-                              {c.goalType}
+                              {GOAL_LABELS[c.goalType] || c.goalType}
                             </span>
                           ) : "—"}
                         </td>
@@ -371,6 +374,7 @@ function ClientsPage({ token }) {
                         </td>
                         <td><span className="adm-mono" style={{ color: "var(--adm-accent)" }}>{c.enrolledPrograms?.length || 0}</span></td>
                         <td><span className="adm-mono" style={{ color: "var(--adm-gold)" }}>{(c.flexPoints || 0).toLocaleString()}</span></td>
+                        <td style={{ fontSize: 12, color: "var(--adm-text2)" }}>{c.phone || c.user?.phone || "—"}</td>
                         <td style={{ fontSize: 12 }}>{fmtDate(c.createdAt || c.user?.createdAt)}</td>
                       </tr>
                     ))}
@@ -392,7 +396,7 @@ function ClientsPage({ token }) {
               <div className="adm-detail-item"><div className="adm-detail-label">Current Weight</div><div className="adm-detail-val">{selected.currentWeight ? `${selected.currentWeight} kg` : "—"}</div></div>
               <div className="adm-detail-item"><div className="adm-detail-label">Target Weight</div><div className="adm-detail-val">{selected.targetWeight ? `${selected.targetWeight} kg` : "—"}</div></div>
               <div className="adm-detail-item"><div className="adm-detail-label">Fitness Level</div><div className="adm-detail-val" style={{ textTransform: "capitalize" }}>{selected.fitnessLevel || "—"}</div></div>
-              <div className="adm-detail-item"><div className="adm-detail-label">Goal</div><div className="adm-detail-val" style={{ textTransform: "capitalize" }}>{selected.goalType || "—"}</div></div>
+              <div className="adm-detail-item"><div className="adm-detail-label">Goal</div><div className="adm-detail-val" style={{ textTransform: "capitalize" }}>{GOAL_LABELS[selected.goalType] || selected.goalType || "—"}</div></div>
               <div className="adm-detail-item"><div className="adm-detail-label">Flex Points</div><div className="adm-detail-val" style={{ color: "var(--adm-gold)" }}>{(selected.flexPoints || 0).toLocaleString()}</div></div>
               <div className="adm-detail-item"><div className="adm-detail-label">Lifetime Points</div><div className="adm-detail-val">{(selected.lifetimePoints || 0).toLocaleString()}</div></div>
               <div className="adm-detail-item"><div className="adm-detail-label">Enrolled Programs</div><div className="adm-detail-val" style={{ color: "var(--adm-accent)" }}>{selected.enrolledPrograms?.length || 0}</div></div>
@@ -454,7 +458,8 @@ function TrainersPage({ token }) {
     });
 
   const totalRevenue = trainers.reduce((s, t) => s + (t.totalRevenue || 0), 0);
-  const avgRating = trainers.length ? (trainers.reduce((s, t) => s + (t.avgRating || 0), 0) / trainers.length).toFixed(1) : 0;
+  const ratedTrainers = trainers.filter(t => t.avgRating > 0);
+  const avgRating = ratedTrainers.length ? (ratedTrainers.reduce((s, t) => s + (t.avgRating || 0), 0) / ratedTrainers.length).toFixed(1) : "—";
 
   return (
     <div>
@@ -462,7 +467,7 @@ function TrainersPage({ token }) {
         <KPICard label="Total Trainers" value={trainers.length} color="var(--adm-green)" icon="💪" />
         <KPICard label="Approved" value={counts.approved} color="var(--adm-green)" icon="✅" />
         <KPICard label="Total Revenue" value={fmtINR(totalRevenue)} color="var(--adm-gold)" icon="💰" />
-        <KPICard label="Avg Rating" value={`${avgRating} ★`} color="var(--adm-gold)" icon="⭐" />
+        <KPICard label="Avg Rating" value={avgRating === "—" ? "—" : `${avgRating} ★`} color="var(--adm-gold)" icon="⭐" />
       </div>
 
       <div className="adm-card">
@@ -495,8 +500,8 @@ function TrainersPage({ token }) {
                       <th>Trainer</th>
                       <th>Status</th>
                       <th>Programs</th>
-                      <th>Clients</th>
-                      <th>Completions</th>
+                      <th>Active Clients</th>
+                      <th>Monthly Completions</th>
                       <th>Avg Rating</th>
                       <th>Revenue</th>
                       <th>Certificate</th>
