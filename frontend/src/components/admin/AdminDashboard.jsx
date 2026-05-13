@@ -323,7 +323,7 @@ function ClientsPage({ token }) {
       <div className="adm-kpi-grid" style={{ gridTemplateColumns: "repeat(3,1fr)", marginBottom: 24 }}>
         <KPICard label="Total Clients" value={clients.length} color="var(--adm-accent)" icon="👥" />
         <KPICard label="Active This Month" value={clients.filter(c => { const d = c.updatedAt || c.lastActive || c.user?.updatedAt; return d && new Date(d) > new Date(Date.now() - 30 * 864e5); }).length} color="var(--adm-green)" icon="🔥" />
-        <KPICard label="Avg Flex Points" value={clients.length ? Math.round(clients.reduce((s, c) => s + (c.flexPoints || 0), 0) / clients.length).toLocaleString() : 0} color="var(--adm-gold)" icon="⭐" />
+        <KPICard label="Active Subscribers" value={clients.filter(c => c.subscriptionActive).length} color="var(--adm-gold)" icon="⭐" />
       </div>
 
       <div className="adm-card">
@@ -344,7 +344,7 @@ function ClientsPage({ token }) {
                       <th>Fitness Level</th>
                       <th>Weight</th>
                       <th>Programs</th>
-                      <th>Flex Points</th>
+                      <th>Subscription</th>
                       <th>Phone</th>
                       <th>Joined</th>
                     </tr>
@@ -375,8 +375,8 @@ function ClientsPage({ token }) {
                             {c.targetWeight ? <span style={{ color: "var(--adm-text3)" }}> → {c.targetWeight} kg</span> : ""}
                           </span>
                         </td>
-                        <td><span className="adm-mono" style={{ color: "var(--adm-accent)" }}>{c.enrolledPrograms?.length || 0}</span></td>
-                        <td><span className="adm-mono" style={{ color: "var(--adm-gold)" }}>{(c.flexPoints || 0).toLocaleString()}</span></td>
+                        <td><span className="adm-mono" style={{ color: "var(--adm-accent)" }}>{c.enrolledPrograms || 0}</span></td>
+                        <td><StatusBadge status={c.subscriptionActive ? "active" : "inactive"} /></td>
                         <td style={{ fontSize: 12, color: "var(--adm-text2)" }}>{c.phone || c.user?.phone || "—"}</td>
                         <td style={{ fontSize: 12 }}>{fmtDate(c.createdAt || c.user?.createdAt)}</td>
                       </tr>
@@ -400,9 +400,9 @@ function ClientsPage({ token }) {
               <div className="adm-detail-item"><div className="adm-detail-label">Target Weight</div><div className="adm-detail-val">{selected.targetWeight ? `${selected.targetWeight} kg` : "—"}</div></div>
               <div className="adm-detail-item"><div className="adm-detail-label">Fitness Level</div><div className="adm-detail-val" style={{ textTransform: "capitalize" }}>{selected.fitnessLevel || "—"}</div></div>
               <div className="adm-detail-item"><div className="adm-detail-label">Goal</div><div className="adm-detail-val" style={{ textTransform: "capitalize" }}>{GOAL_LABELS[selected.goalType] || selected.goalType || "—"}</div></div>
-              <div className="adm-detail-item"><div className="adm-detail-label">Flex Points</div><div className="adm-detail-val" style={{ color: "var(--adm-gold)" }}>{(selected.flexPoints || 0).toLocaleString()}</div></div>
-              <div className="adm-detail-item"><div className="adm-detail-label">Lifetime Points</div><div className="adm-detail-val">{(selected.lifetimePoints || 0).toLocaleString()}</div></div>
-              <div className="adm-detail-item"><div className="adm-detail-label">Enrolled Programs</div><div className="adm-detail-val" style={{ color: "var(--adm-accent)" }}>{selected.enrolledPrograms?.length || 0}</div></div>
+              <div className="adm-detail-item"><div className="adm-detail-label">Workouts/Week</div><div className="adm-detail-val">{selected.workoutsPerWeek || "—"}</div></div>
+              <div className="adm-detail-item"><div className="adm-detail-label">Subscription</div><div className="adm-detail-val"><StatusBadge status={selected.subscriptionActive ? "active" : "inactive"} /></div></div>
+              <div className="adm-detail-item"><div className="adm-detail-label">Enrolled Programs</div><div className="adm-detail-val" style={{ color: "var(--adm-accent)" }}>{selected.enrolledPrograms || 0}</div></div>
               <div className="adm-detail-item"><div className="adm-detail-label">Phone</div><div className="adm-detail-val">{selected.phone || selected.user?.phone || "—"}</div></div>
               <div className="adm-detail-item"><div className="adm-detail-label">Joined</div><div className="adm-detail-val">{fmtDate(selected.createdAt || selected.user?.createdAt)}</div></div>
             </div>
