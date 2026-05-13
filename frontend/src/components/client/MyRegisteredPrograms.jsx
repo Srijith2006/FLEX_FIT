@@ -459,143 +459,66 @@ function ProgressSummary({ programId, token }) {
   );
 }
 
-// ── 5-minute countdown alert hook ─────────────────────────────────────────────
-// Fires a browser alert (once per session) when a session is ≤5 min away.
-// Tracks which session IDs have already alerted to prevent repeat notifications.
-function useSessionAlerts(sessions, programTitle) {
-  useEffect(() => {
-    if (!sessions || sessions.length === 0) return;
-
-    // Track alerted session IDs in a closure-local Set so they survive re-renders
-    const alerted = new Set();
-
-    const checkTime = setInterval(() => {
-      const now = new Date();
-      sessions.forEach(s => {
-        if (alerted.has(s._id)) return;           // already notified for this session
-        const startTime = new Date(s.scheduledAt);
-        const diff = (startTime - now) / 1000 / 60; // minutes until start
-
-        if (diff > 0 && diff <= 5) {
-          alerted.add(s._id);
-          alert(
-            `⏰ Reminder: Your live session "${s.title}" for ${programTitle} starts in ${Math.round(diff)} minute${Math.round(diff) !== 1 ? "s" : ""}!`
-          );
-        }
-      });
-    }, 60000); // check every minute
-
-    return () => clearInterval(checkTime);
-  }, [sessions, programTitle]);
-}
-
 // ── Program Live Sessions ─────────────────────────────────────────────────────
-// Fetches sessions via /sessions/for-me?programId=<id>.
-// The server already verifies enrollment before returning sessions,
-// so if the user isn't enrolled they simply get an empty list.
-function ProgramSessions({ programId, programTitle, token }) {
+function ProgramSessions({ programId, trainerId, token }) {
   const [sessions, setSessions] = useState([]);
   const [loading,  setLoading]  = useState(true);
 
-  // Pass programId as a query param so the server only returns sessions
-  // for this specific program (enrollment check happens server-side).
   useEffect(() => {
-    api.get(`/sessions/for-me?programId=${programId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => setSessions(r.data.sessions || []))
+    api.get("/sessions/for-me", { headers:{ Authorization:`Bearer ${token}` } })
+      .then(r => {
+        const all = r.data.sessions || [];
+        const relevant = all.filter(s => {
+          const mp = s.program && String(s.program?._id||s.program) === String(programId);
+          const mt = s.trainer && (
+            String(s.trainer?._id) === String(trainerId) ||
+            String(s.trainer)      === String(trainerId)
+          );
+          return mp || mt;
+        });
+        setSessions(relevant.length > 0 ? relevant : all.filter(s =>
+          String(s.trainer?._id||s.trainer) === String(trainerId)
+        ));
+      })
       .catch(() => setSessions([]))
       .finally(() => setLoading(false));
-  }, [programId, token]);
-
-  // Register 5-minute alert watchers for all upcoming sessions
-  useSessionAlerts(sessions, programTitle);
+  }, [programId, trainerId]);
 
   if (loading) return (
-    <div style={{ padding:"16px", color:"var(--text3)", fontSize:"13px" }}>
-      Loading sessions…
-    </div>
+    <div style={{padding:"16px",color:"var(--text3)",fontSize:"13px"}}>Loading sessions…</div>
   );
-
   if (sessions.length === 0) return (
-    <div className="empty-state" style={{ padding:"24px" }}>
+    <div className="empty-state" style={{padding:"24px"}}>
       <div className="empty-state-icon">🎥</div>
-      <div className="empty-state-text">No live sessions scheduled for this program yet.</div>
+      <div className="empty-state-text">No live sessions scheduled yet.</div>
     </div>
   );
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-      {sessions.map(s => {
-        const live      = isLive(s);
-        const startMs   = new Date(s.scheduledAt).getTime();
-        const now       = Date.now();
-        const minutesTo = Math.round((startMs - now) / 60000);
-        const soonish   = minutesTo > 0 && minutesTo <= 30;   // highlight if <30 min away
-
-        return (
-          <div
-            key={s._id}
-            style={{
-              display: "flex", justifyContent: "space-between",
-              alignItems: "flex-start", gap: "12px",
-              padding: "14px 16px",
-              background: live
-                ? "rgba(16,185,129,0.08)"
-                : soonish
-                ? "rgba(245,158,11,0.05)"
-                : "var(--bg3)",
-              border: `1px solid ${live ? "var(--green)" : soonish ? "rgba(245,158,11,0.35)" : "var(--border)"}`,
-              borderRadius: "var(--radius)",
-              transition: "border-color 0.2s",
-            }}
-          >
-            <div style={{ flex: 1 }}>
-              {/* Title + badges */}
-              <div style={{ display:"flex", gap:"8px", alignItems:"center", marginBottom:"4px", flexWrap:"wrap" }}>
-                <span style={{ fontWeight:700, fontSize:"13px" }}>{s.title}</span>
-                {live && (
-                  <span className="tag tag-approved" style={{ animation:"pulse 1.5s infinite" }}>
-                    🔴 LIVE
-                  </span>
-                )}
-                {!live && soonish && (
-                  <span style={{
-                    fontSize:"10px", fontWeight:700, color:"var(--gold)",
-                    background:"rgba(245,158,11,0.12)", border:"1px solid rgba(245,158,11,0.3)",
-                    padding:"2px 8px", borderRadius:"20px",
-                  }}>
-                    ⏰ in {minutesTo} min
-                  </span>
-                )}
-              </div>
-
-              {/* Time + trainer */}
-              <div style={{ fontSize:"11px", color:"var(--text3)", marginBottom:"3px" }}>
-                {formatDT(s.scheduledAt)} · {s.durationMinutes} min
-                {s.trainer?.user?.name && ` · by ${s.trainer.user.name}`}
-              </div>
-
-              {s.description && (
-                <div style={{ fontSize:"12px", color:"var(--text2)", marginTop:"3px" }}>
-                  {s.description}
-                </div>
+    <div style={{display:"flex",flexDirection:"column",gap:"8px"}}>
+      {sessions.map(s => (
+        <div key={s._id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
+          padding:"12px 14px",
+          background: isLive(s) ? "rgba(16,185,129,0.08)" : "var(--bg3)",
+          border:`1px solid ${isLive(s)?"var(--green)":"var(--border)"}`,
+          borderRadius:"var(--radius)", gap:"12px" }}>
+          <div>
+            <div style={{display:"flex",gap:"8px",alignItems:"center",marginBottom:"3px"}}>
+              <span style={{fontWeight:700,fontSize:"13px"}}>{s.title}</span>
+              {isLive(s) && (
+                <span className="tag tag-approved" style={{animation:"pulse 1.5s infinite"}}>🔴 LIVE</span>
               )}
             </div>
-
-            {/* Join / view button — link always visible since enrollment is verified server-side */}
-            <a
-              href={s.meetingLink}
-              target="_blank"
-              rel="noreferrer"
-              className={`btn btn-sm ${live ? "btn-accent" : "btn-outline"}`}
-              style={{ flexShrink:0 }}
-            >
-              {live ? "Join Now 🚀" : "View Link"}
-            </a>
+            <div style={{fontSize:"11px",color:"var(--text3)"}}>
+              {formatDT(s.scheduledAt)} · {s.durationMinutes}min · by {s.trainer?.user?.name}
+            </div>
           </div>
-        );
-      })}
+          <a href={s.meetingLink} target="_blank" rel="noreferrer"
+            className={`btn btn-sm ${isLive(s)?"btn-accent":"btn-outline"}`} style={{flexShrink:0}}>
+            {isLive(s) ? "Join Now 🚀" : "View Link"}
+          </a>
+        </div>
+      ))}
     </div>
   );
 }
@@ -755,7 +678,8 @@ export default function MyRegisteredPrograms() {
   useEffect(() => {
     api.get("/programs/enrolled", { headers:{ Authorization:`Bearer ${token}` } })
       .then(r => {
-        const enrs = r.data.enrollments || [];
+        // Filter out enrollments where the program has been deleted
+        const enrs = (r.data.enrollments || []).filter(e => e.program && e.program._id);
         setEnrollments(enrs);
         if (enrs.length > 0) setActiveEnrollment(enrs[0]);
       })
@@ -788,11 +712,13 @@ export default function MyRegisteredPrograms() {
       {enrollments.length > 1 && (
         <div style={{display:"flex",gap:"8px",flexWrap:"wrap"}}>
           {enrollments.map(e => (
-            <button key={e._id}
-              className={`btn btn-sm ${activeEnrollment?._id===e._id?"btn-primary":"btn-outline"}`}
-              onClick={() => { setActiveEnrollment(e); setActiveTab("workout"); }}>
-              {e.program?.title}
-            </button>
+            e.program?.title ? (
+              <button key={e._id}
+                className={`btn btn-sm ${activeEnrollment?._id===e._id?"btn-primary":"btn-outline"}`}
+                onClick={() => { setActiveEnrollment(e); setActiveTab("workout"); }}>
+                {e.program.title}
+              </button>
+            ) : null
           ))}
         </div>
       )}
@@ -857,7 +783,7 @@ export default function MyRegisteredPrograms() {
             {activeTab === "sessions" && (
               <ProgramSessions
                 programId={program._id}
-                programTitle={program.title}
+                trainerId={trainer?._id}
                 token={token}
               />
             )}
