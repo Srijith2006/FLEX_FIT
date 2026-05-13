@@ -1,32 +1,32 @@
 ﻿import { WorkoutCompletion, Enrollment, Client } from "../models/index.js";
 
-// Admin — get all clients with profile + enrollment count + flex points
+// Admin — get all clients with profile + enrollment count
 export const getAllClients = async (req, res, next) => {
   try {
     const clients = await Client.find({})
       .populate("user", "name email phone createdAt")
       .sort({ createdAt: -1 });
 
-    // Enrich each client with enrollment count
+    // Enrich each client with real enrollment count from Enrollment collection
     const enriched = await Promise.all(clients.map(async (c) => {
       const enrollmentCount = await Enrollment.countDocuments({ client: c._id });
       return {
-        _id:               c._id,
-        user:              c.user,
-        age:               c.age,
-        gender:            c.gender,
-        height:            c.height,
-        currentWeight:     c.currentWeight,
-        targetWeight:      c.targetWeight,
-        goalType:          c.goalType,
-        fitnessLevel:      c.fitnessLevel,
-        workoutsPerWeek:   c.workoutsPerWeek,
-        healthNotes:       c.healthNotes,
-        injuries:          c.injuries,
+        _id:                c._id,
+        user:               c.user,
+        age:                c.age,
+        gender:             c.gender,
+        height:             c.height,
+        currentWeight:      c.currentWeight,
+        targetWeight:       c.targetWeight,
+        goalType:           c.goalType,
+        fitnessLevel:       c.fitnessLevel,
+        workoutsPerWeek:    c.workoutsPerWeek,
+        healthNotes:        c.healthNotes,
+        injuries:           c.injuries,
         subscriptionActive: c.subscriptionActive,
-        enrolledPrograms:  enrollmentCount,
-        createdAt:         c.createdAt,
-        updatedAt:         c.updatedAt,
+        enrolledPrograms:   enrollmentCount,   // number, not array
+        createdAt:          c.createdAt,
+        updatedAt:          c.updatedAt,
       };
     }));
 
