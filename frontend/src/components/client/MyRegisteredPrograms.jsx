@@ -38,18 +38,14 @@ function videoUrl(path) {
 }
 
 // ── Session Tracker ───────────────────────────────────────────────────────────
-// Props:
-//   program  – { _id }
-//   token    – auth token
-//   onDone   – callback(completion) — called with the new completion object
 function SessionTracker({ program, token, onDone }) {
-  const [phase, setPhase]       = useState("idle");   // idle | running | submitting | done
+  const [phase, setPhase]       = useState("idle");
   const [elapsed, setElapsed]   = useState(0);
   const [videoFile, setVideo]   = useState(null);
   const [uploading, setUp]      = useState(false);
   const [msg, setMsg]           = useState({ type:"", text:"" });
   const [previewUrl, setPreview] = useState(null);
-  const [doneData, setDoneData] = useState(null);   // completion returned from API
+  const [doneData, setDoneData] = useState(null);
   const intervalRef = useRef(null);
   const startRef    = useRef(null);
 
@@ -98,7 +94,7 @@ function SessionTracker({ program, token, onDone }) {
       setDoneData({ elapsed, videoFile, completion });
       setMsg({ type:"success", text: res.data.message || "Session saved! 🔥" });
       setPhase("done");
-      onDone?.(completion);       // ← pass the full object up so parent can set todayDone
+      onDone?.(completion);
     } catch (e) {
       setMsg({ type:"error", text: e?.response?.data?.message || "Submission failed." });
     } finally { setUp(false); }
@@ -244,7 +240,7 @@ function SessionTracker({ program, token, onDone }) {
   );
 }
 
-// ── Already-submitted badge (replaces Start button when todayDone === true) ───
+// ── Already-submitted badge ───────────────────────────────────────────────────
 function SessionSubmittedBadge({ completion }) {
   return (
     <div style={{ padding:"16px 20px", background:"rgba(16,185,129,0.07)",
@@ -277,12 +273,11 @@ function DailyWorkoutView({ programId, token }) {
   const [workout, setWorkout]           = useState(null);
   const [allWorkouts, setAllWorkouts]   = useState([]);
   const [loading, setLoading]           = useState(true);
-  const [todayDone, setTodayDone]       = useState(false);   // ← duplicate-guard
+  const [todayDone, setTodayDone]       = useState(false);
   const [todayCompletion, setTodayCompletion] = useState(null);
-  const [sessionDone, setSessionDone]   = useState(false);   // trigger re-fetch
+  const [sessionDone, setSessionDone]   = useState(false);
   const { token: tkn } = useAuth();
 
-  // ── On mount: check if today already has a session_tracker completion ──────
   useEffect(() => {
     api.get(`/daily-workouts/client/${programId}/day?date=${today}`, {
       headers: { Authorization: `Bearer ${tkn}` },
@@ -295,14 +290,12 @@ function DailyWorkoutView({ programId, token }) {
     }).catch(() => {});
   }, [programId, tkn, sessionDone]);
 
-  // ── Fetch all workout dates for date-picker pills ─────────────────────────
   useEffect(() => {
     api.get(`/daily-workouts/client/${programId}`, { headers:{ Authorization:`Bearer ${tkn}` } })
       .then(r => setAllWorkouts(r.data.workouts || []))
       .catch(() => {});
   }, [programId, sessionDone]);
 
-  // ── Fetch selected-date workout ───────────────────────────────────────────
   useEffect(() => {
     setLoading(true); setWorkout(null);
     api.get(`/daily-workouts/client/${programId}/day?date=${selectedDate}`, {
@@ -313,7 +306,6 @@ function DailyWorkoutView({ programId, token }) {
       .finally(() => setLoading(false));
   }, [selectedDate, programId, sessionDone]);
 
-  // Called by SessionTracker after a successful submission
   const handleSessionDone = (completion) => {
     setTodayDone(true);
     setTodayCompletion(completion);
@@ -326,7 +318,6 @@ function DailyWorkoutView({ programId, token }) {
 
   return (
     <div>
-      {/* Date picker row */}
       <div style={{ display:"flex", gap:"8px", alignItems:"center", marginBottom:"14px", flexWrap:"wrap" }}>
         <input type="date" className="form-input" value={selectedDate}
           onChange={e => setSelectedDate(e.target.value)} style={{ maxWidth:"160px" }} />
@@ -349,7 +340,6 @@ function DailyWorkoutView({ programId, token }) {
         </div>
       ) : (
         <div>
-          {/* Workout header */}
           <div style={{ marginBottom:"14px" }}>
             <div style={{ fontWeight:700, fontSize:"15px", color:"var(--accent)", marginBottom:"3px" }}>
               {workout.title || `Workout — ${selectedDate}`}
@@ -357,7 +347,6 @@ function DailyWorkoutView({ programId, token }) {
             {workout.notes && <div style={{ fontSize:"12px", color:"var(--text2)" }}>📝 {workout.notes}</div>}
           </div>
 
-          {/* Exercise cards */}
           <div style={{ display:"flex", flexDirection:"column", gap:"10px", marginBottom:"16px" }}>
             {workout.exercises.map((ex, i) => {
               const embed = getYTEmbed(ex.videoUrl);
@@ -402,24 +391,18 @@ function DailyWorkoutView({ programId, token }) {
             })}
           </div>
 
-          {/* ── Session Tracker section ── */}
-          {/* For today: show badge if done, start button if not */}
           {selectedDate === today ? (
             todayDone
               ? <SessionSubmittedBadge completion={todayCompletion} />
               : <SessionTracker program={{ _id: programId }} token={tkn} onDone={handleSessionDone} />
-          ) : (
-            /* For past dates: show read-only completion info if exists */
-            null
-          )}
+          ) : null}
         </div>
       )}
     </div>
   );
 }
 
-// ── Progress Summary bar (shown above Today's Workout) ───────────────────────
-// Progress is now sessions-done / program-total-days (not exercises)
+// ── Progress Summary bar ──────────────────────────────────────────────────────
 function ProgressSummary({ programId, token }) {
   const [data, setData] = useState(null);
 
@@ -431,11 +414,10 @@ function ProgressSummary({ programId, token }) {
 
   if (!data) return null;
 
-  // Use session_tracker completions for the progress bar denominator
   const sessionCompletions = (data.completions || []).filter(
     c => c.sessionType === "session_tracker" || c.duration > 0
   );
-  const totalDays  = data.totalWorkouts || 1;
+  const totalDays    = data.totalWorkouts || 1;
   const doneSessions = sessionCompletions.length;
   const pct = Math.min(100, Math.round((doneSessions / totalDays) * 100));
 
@@ -460,61 +442,104 @@ function ProgressSummary({ programId, token }) {
 }
 
 // ── Program Live Sessions ─────────────────────────────────────────────────────
-function ProgramSessions({ programId, trainerId, token }) {
+// FIX: Replaced the broken /sessions/for-me endpoint + fragile client-side
+//      filter with a direct /sessions/program/:programId call.
+//      The old approach silently returned [] because:
+//        1. /sessions/for-me only returned isOpenToAll:true sessions on the backend
+//        2. Even if data existed, s.program?._id could be undefined if the
+//           backend didn't populate the program field
+//        3. The trainerId fallback filter was also unreliable due to ID type mismatches
+// ─────────────────────────────────────────────────────────────────────────────
+function ProgramSessions({ programId, token }) {
   const [sessions, setSessions] = useState([]);
   const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState("");
 
-  useEffect(() => {
-    api.get("/sessions/for-me", { headers:{ Authorization:`Bearer ${token}` } })
-      .then(r => {
-        const all = r.data.sessions || [];
-        const relevant = all.filter(s => {
-          const mp = s.program && String(s.program?._id||s.program) === String(programId);
-          const mt = s.trainer && (
-            String(s.trainer?._id) === String(trainerId) ||
-            String(s.trainer)      === String(trainerId)
-          );
-          return mp || mt;
-        });
-        setSessions(relevant.length > 0 ? relevant : all.filter(s =>
-          String(s.trainer?._id||s.trainer) === String(trainerId)
-        ));
+  const load = () => {
+    setLoading(true);
+    setError("");
+    // ✅ FIX: fetch sessions scoped directly to this program.
+    //    Backend must verify the requesting client is enrolled in programId.
+    //    See backend fix note at bottom of this file.
+    api.get(`/sessions/program/${programId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => setSessions(r.data.sessions || []))
+      .catch(() => {
+        setError("Could not load sessions. Please try again.");
+        setSessions([]);
       })
-      .catch(() => setSessions([]))
       .finally(() => setLoading(false));
-  }, [programId, trainerId]);
+  };
+
+  useEffect(() => { load(); }, [programId]);
 
   if (loading) return (
-    <div style={{padding:"16px",color:"var(--text3)",fontSize:"13px"}}>Loading sessions…</div>
+    <div style={{ padding:"16px", color:"var(--text3)", fontSize:"13px",
+      display:"flex", alignItems:"center", gap:"8px" }}>
+      <div className="spinner" style={{ width:"16px", height:"16px" }} />
+      Loading sessions…
+    </div>
   );
+
+  if (error) return (
+    <div style={{ padding:"16px" }}>
+      <div className="alert alert-error" style={{ marginBottom:"10px" }}>{error}</div>
+      <button className="btn btn-outline btn-sm" onClick={load}>↻ Retry</button>
+    </div>
+  );
+
   if (sessions.length === 0) return (
-    <div className="empty-state" style={{padding:"24px"}}>
+    <div className="empty-state" style={{ padding:"24px" }}>
       <div className="empty-state-icon">🎥</div>
       <div className="empty-state-text">No live sessions scheduled yet.</div>
     </div>
   );
 
   return (
-    <div style={{display:"flex",flexDirection:"column",gap:"8px"}}>
+    <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
       {sessions.map(s => (
-        <div key={s._id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
-          padding:"12px 14px",
-          background: isLive(s) ? "rgba(16,185,129,0.08)" : "var(--bg3)",
-          border:`1px solid ${isLive(s)?"var(--green)":"var(--border)"}`,
-          borderRadius:"var(--radius)", gap:"12px" }}>
-          <div>
-            <div style={{display:"flex",gap:"8px",alignItems:"center",marginBottom:"3px"}}>
-              <span style={{fontWeight:700,fontSize:"13px"}}>{s.title}</span>
+        <div
+          key={s._id}
+          style={{
+            display:"flex", justifyContent:"space-between", alignItems:"center",
+            padding:"12px 14px",
+            background: isLive(s) ? "rgba(16,185,129,0.08)" : "var(--bg3)",
+            border:`1px solid ${isLive(s) ? "var(--green)" : "var(--border)"}`,
+            borderRadius:"var(--radius)",
+            gap:"12px",
+            transition:"border-color 0.2s",
+          }}
+        >
+          <div style={{ flex:1, minWidth:0 }}>
+            {/* Title + live badge */}
+            <div style={{ display:"flex", gap:"8px", alignItems:"center", marginBottom:"3px", flexWrap:"wrap" }}>
+              <span style={{ fontWeight:700, fontSize:"13px" }}>{s.title}</span>
               {isLive(s) && (
-                <span className="tag tag-approved" style={{animation:"pulse 1.5s infinite"}}>🔴 LIVE</span>
+                <span className="tag tag-approved" style={{ animation:"pulse 1.5s infinite" }}>
+                  🔴 LIVE
+                </span>
               )}
             </div>
-            <div style={{fontSize:"11px",color:"var(--text3)"}}>
-              {formatDT(s.scheduledAt)} · {s.durationMinutes}min · by {s.trainer?.user?.name}
+            {/* Time + duration + trainer */}
+            <div style={{ fontSize:"11px", color:"var(--text3)", marginBottom:"2px" }}>
+              {formatDT(s.scheduledAt)} · {s.durationMinutes}min
+              {s.trainer?.user?.name && ` · by ${s.trainer.user.name}`}
             </div>
+            {s.description && (
+              <div style={{ fontSize:"11px", color:"var(--text2)", marginTop:"2px" }}>
+                {s.description}
+              </div>
+            )}
           </div>
-          <a href={s.meetingLink} target="_blank" rel="noreferrer"
-            className={`btn btn-sm ${isLive(s)?"btn-accent":"btn-outline"}`} style={{flexShrink:0}}>
+          {/* Join / View link */}
+          <a
+            href={s.meetingLink}
+            target="_blank"
+            rel="noreferrer"
+            className={`btn btn-sm ${isLive(s) ? "btn-accent" : "btn-outline"}`}
+            style={{ flexShrink:0 }}
+          >
             {isLive(s) ? "Join Now 🚀" : "View Link"}
           </a>
         </div>
@@ -523,7 +548,7 @@ function ProgramSessions({ programId, trainerId, token }) {
   );
 }
 
-// ── Progress Full — Session History (replaces exercise metrics) ───────────────
+// ── Progress Full ─────────────────────────────────────────────────────────────
 function ProgressFull({ programId, token, programTitle }) {
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
@@ -544,25 +569,21 @@ function ProgressFull({ programId, token, programTitle }) {
     </div>
   );
 
-  // Filter to session_tracker completions only
   const sessions = (data.completions || [])
     .filter(c => c.sessionType === "session_tracker" || c.duration > 0)
     .slice()
-    .reverse();   // newest first
+    .reverse();
 
   const totalDays    = data.totalWorkouts || 1;
   const doneSessions = sessions.length;
   const pct          = Math.min(100, Math.round((doneSessions / totalDays) * 100));
 
-  // Aggregate stats
-  const totalSeconds  = sessions.reduce((s, c) => s + (c.duration || 0), 0);
-  const avgSeconds    = doneSessions > 0 ? Math.round(totalSeconds / doneSessions) : 0;
-  const withVideo     = sessions.filter(c => c.videoUrl).length;
+  const totalSeconds = sessions.reduce((s, c) => s + (c.duration || 0), 0);
+  const avgSeconds   = doneSessions > 0 ? Math.round(totalSeconds / doneSessions) : 0;
+  const withVideo    = sessions.filter(c => c.videoUrl).length;
 
   return (
     <div>
-
-      {/* KPI row */}
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"10px", marginBottom:"16px" }}>
         <div className="stat-card">
           <div className="stat-card-value" style={{color:"var(--accent)",fontSize:"28px"}}>{pct}%</div>
@@ -578,7 +599,6 @@ function ProgressFull({ programId, token, programTitle }) {
         </div>
       </div>
 
-      {/* Progress bar (session-based) */}
       <div style={{ marginBottom:"20px" }}>
         <div style={{ display:"flex", justifyContent:"space-between", fontSize:"12px",
           color:"var(--text3)", marginBottom:"6px" }}>
@@ -592,7 +612,6 @@ function ProgressFull({ programId, token, programTitle }) {
         </div>
       </div>
 
-      {/* Session History table */}
       {sessions.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">🏋️</div>
@@ -600,7 +619,6 @@ function ProgressFull({ programId, token, programTitle }) {
         </div>
       ) : (
         <>
-          {/* Table header */}
           <div style={{ display:"grid", gridTemplateColumns:"1fr 2fr 1fr 1fr",
             gap:"8px", padding:"8px 14px", fontSize:"10px", fontWeight:700,
             color:"var(--text3)", textTransform:"uppercase", letterSpacing:"0.5px",
@@ -620,7 +638,6 @@ function ProgressFull({ programId, token, programTitle }) {
                 onMouseEnter={e => e.currentTarget.style.borderColor="var(--border2)"}
                 onMouseLeave={e => e.currentTarget.style.borderColor="var(--border)"}>
 
-                {/* Date */}
                 <div>
                   <div style={{ fontWeight:700, fontSize:"13px" }}>
                     {new Date((c.date||"")+"T12:00:00").toLocaleDateString("en-IN",
@@ -631,19 +648,16 @@ function ProgressFull({ programId, token, programTitle }) {
                   </div>
                 </div>
 
-                {/* Program name */}
                 <div style={{ fontSize:"12px", color:"var(--text2)", fontWeight:600,
                   overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                   {programTitle || "—"}
                 </div>
 
-                {/* Duration */}
                 <div style={{ fontFamily:"'Courier New',monospace", fontWeight:700,
                   fontSize:"14px", color:"var(--gold)" }}>
                   {c.duration > 0 ? fmt(c.duration) : "—"}
                 </div>
 
-                {/* Video link */}
                 <div>
                   {c.videoUrl ? (
                     <a href={videoUrl(c.videoUrl)} target="_blank" rel="noreferrer"
@@ -670,15 +684,14 @@ function ProgressFull({ programId, token, programTitle }) {
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function MyRegisteredPrograms() {
   const { token } = useAuth();
-  const [enrollments, setEnrollments]       = useState([]);
-  const [loading, setLoading]               = useState(true);
+  const [enrollments, setEnrollments]           = useState([]);
+  const [loading, setLoading]                   = useState(true);
   const [activeEnrollment, setActiveEnrollment] = useState(null);
-  const [activeTab, setActiveTab]           = useState("workout");
+  const [activeTab, setActiveTab]               = useState("workout");
 
   useEffect(() => {
     api.get("/programs/enrolled", { headers:{ Authorization:`Bearer ${token}` } })
       .then(r => {
-        // Filter out enrollments where the program has been deleted
         const enrs = (r.data.enrollments || []).filter(e => e.program && e.program._id);
         setEnrollments(enrs);
         if (enrs.length > 0) setActiveEnrollment(enrs[0]);
@@ -781,9 +794,10 @@ export default function MyRegisteredPrograms() {
               />
             )}
             {activeTab === "sessions" && (
+              // ✅ FIX: removed trainerId prop — no longer needed since
+              //    ProgramSessions now fetches by programId directly
               <ProgramSessions
                 programId={program._id}
-                trainerId={trainer?._id}
                 token={token}
               />
             )}
@@ -793,3 +807,36 @@ export default function MyRegisteredPrograms() {
     </div>
   );
 }
+
+// =============================================================================
+// REQUIRED BACKEND CHANGE
+// Add this route to your Express sessions router (e.g. routes/sessions.js)
+// =============================================================================
+//
+// router.get("/program/:programId", protect, async (req, res) => {
+//   try {
+//     const { programId } = req.params;
+//
+//     // For clients: verify they are enrolled in this program
+//     if (req.user.role === "client") {
+//       const enrollment = await Enrollment.findOne({
+//         program: programId,
+//         client:  req.user.clientProfile,  // adjust to your field name
+//       });
+//       if (!enrollment) {
+//         return res.status(403).json({ message: "Not enrolled in this program." });
+//       }
+//     }
+//
+//     const sessions = await Session.find({ program: programId })
+//       .populate({ path: "trainer", populate: { path: "user", select: "name email" } })
+//       .sort({ scheduledAt: 1 });
+//
+//     res.json({ sessions });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ message: "Server error." });
+//   }
+// });
+//
+// =============================================================================
