@@ -115,7 +115,6 @@ export default function TrainerOverview({ onNavigate }) {
   const nav       = onNavigate || (() => {});
   const verified  = data?.verificationStatus === "approved";
   const revenue   = data?.totalRevenue || 0;
-  const revPct    = Math.min(100, (revenue / 100000) * 100);
   const firstName = user?.name?.split(" ")[0] || "Coach";
 
   return (
@@ -198,20 +197,7 @@ export default function TrainerOverview({ onNavigate }) {
                 color:"var(--green)", lineHeight:1 }}>
                 ₹{revenue.toLocaleString("en-IN")}
               </div>
-              {/* Mini progress toward goal */}
-              <div style={{ marginTop:"8px", width:"160px" }}>
-                <div style={{ display:"flex", justifyContent:"space-between",
-                  fontSize:"10px", color:"var(--text3)", marginBottom:"4px" }}>
-                  <span>₹0</span>
-                  <span>Goal ₹1L</span>
-                </div>
-                <div style={{ height:"4px", background:"rgba(255,255,255,0.07)",
-                  borderRadius:"2px", overflow:"hidden" }}>
-                  <div style={{ height:"100%", width:`${revPct}%`,
-                    background:"linear-gradient(90deg,var(--green),var(--accent))",
-                    borderRadius:"2px", transition:"width 0.8s ease" }} />
-                </div>
-              </div>
+
             </div>
           </div>
 
