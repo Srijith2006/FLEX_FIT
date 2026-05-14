@@ -149,7 +149,7 @@ export default function TrainerOverview({ onNavigate }) {
   const hasSubmitted = !!data?.certificateUrl;
   const isPending    = verifStatus === "pending" && hasSubmitted;  // submitted, waiting review
   const needsSubmit  = verifStatus === "pending" && !hasSubmitted; // new trainer, hasn't uploaded
-  const canSubmit    = needsSubmit || isRejected;                  // show the upload modal
+  const canSubmit    = needsSubmit || isRejected || isPending;     // show the upload modal
 
   const nav       = onNavigate || (() => {});
   const revenue   = data?.totalRevenue || 0;
@@ -169,8 +169,12 @@ export default function TrainerOverview({ onNavigate }) {
             boxShadow:"0 24px 80px rgba(0,0,0,0.5)" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"20px" }}>
               <div>
-                <div style={{ fontWeight:700, fontSize:"17px", color:"var(--text,#e8edf2)" }}>Submit for Verification</div>
-                <div style={{ fontSize:"12px", color:"var(--text3,#8d97a3)", marginTop:"3px" }}>Upload your fitness certification document</div>
+                <div style={{ fontWeight:700, fontSize:"17px", color:"var(--text,#e8edf2)" }}>
+                  {isPending ? "Update Verification Documents" : isRejected ? "Resubmit for Verification" : "Submit for Verification"}
+                </div>
+                <div style={{ fontSize:"12px", color:"var(--text3,#8d97a3)", marginTop:"3px" }}>
+                  {isPending ? "Replace your submitted certificate with a new one" : "Upload your fitness certification document"}
+                </div>
               </div>
               <button onClick={() => setShowVerify(false)} style={{ background:"none", border:"none",
                 cursor:"pointer", color:"var(--text3,#8d97a3)", fontSize:"20px", lineHeight:1, padding:"4px" }}>×</button>
@@ -181,6 +185,14 @@ export default function TrainerOverview({ onNavigate }) {
                 background:"rgba(248,113,113,0.08)", border:"1px solid rgba(248,113,113,0.2)",
                 fontSize:"12px", color:"#f87171" }}>
                 <strong>Previous rejection reason:</strong> {data.rejectionReason}
+              </div>
+            )}
+
+            {isPending && (
+              <div style={{ padding:"12px 14px", borderRadius:"9px", marginBottom:"16px",
+                background:"rgba(245,158,11,0.07)", border:"1px solid rgba(245,158,11,0.2)",
+                fontSize:"12px", color:"var(--gold)" }}>
+                ⏳ Your previous certificate is currently under review. Uploading a new one will replace it and restart the review process.
               </div>
             )}
 
@@ -304,15 +316,15 @@ export default function TrainerOverview({ onNavigate }) {
                   style={{
                     padding: "10px 20px", borderRadius: "9px", fontSize: "13px",
                     fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
-                    background: isRejected ? "rgba(248,113,113,0.15)" : "rgba(0,112,243,0.85)",
-                    border: `1px solid ${isRejected ? "rgba(248,113,113,0.35)" : "rgba(0,112,243,0.5)"}`,
-                    color: isRejected ? "#f87171" : "#fff",
+                    background: isRejected ? "rgba(248,113,113,0.15)" : isPending ? "rgba(245,158,11,0.12)" : "rgba(0,112,243,0.85)",
+                    border: `1px solid ${isRejected ? "rgba(248,113,113,0.35)" : isPending ? "rgba(245,158,11,0.35)" : "rgba(0,112,243,0.5)"}`,
+                    color: isRejected ? "#f87171" : isPending ? "var(--gold)" : "#fff",
                     transition: "all 0.15s",
                   }}
                   onMouseEnter={e => { e.currentTarget.style.opacity = "0.85"; }}
                   onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
                 >
-                  {isRejected ? "↑ Resubmit Documents" : "🏅 Submit Docs Now"}
+                  {isRejected ? "↑ Resubmit Documents" : isPending ? "📎 Update Documents" : "🏅 Submit Docs Now"}
                 </button>
               )}
             </div>
@@ -359,7 +371,7 @@ export default function TrainerOverview({ onNavigate }) {
                   <span style={{ display:"flex" }}>
                     {verified ? Icons.check : isRejected ? "✕" : "⏳"}
                   </span>
-                  {verified ? "Verified" : isRejected ? "Rejected — Click to Resubmit" : isPending ? "Pending Review" : "Click to Submit Docs"}
+                  {verified ? "Verified" : isRejected ? "Rejected — Click to Resubmit" : isPending ? "Under Review — Click to Update" : "Click to Submit Docs"}
                 </button>
                 <div style={{ display:"inline-flex", alignItems:"center", gap:"5px",
                   padding:"4px 10px", borderRadius:"6px", fontSize:"11px", fontWeight:600,
