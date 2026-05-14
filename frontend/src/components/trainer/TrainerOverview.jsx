@@ -96,11 +96,12 @@ export default function TrainerOverview({ onNavigate }) {
   useEffect(() => {
     (async () => {
       try {
-        const [overRes, cliRes] = await Promise.all([
-          api.get("/trainers/overview", { headers:{ Authorization:`Bearer ${token}` } }),
-          api.get("/trainers/clients",  { headers:{ Authorization:`Bearer ${token}` } }),
+        const [overRes, cliRes, profileRes] = await Promise.all([
+          api.get("/trainers/overview",    { headers:{ Authorization:`Bearer ${token}` } }),
+          api.get("/trainers/clients",     { headers:{ Authorization:`Bearer ${token}` } }),
+          api.get("/trainers/profile/me",  { headers:{ Authorization:`Bearer ${token}` } }).catch(() => ({ data: { trainer: {} } })),
         ]);
-        setData(overRes.data);
+        setData({ ...overRes.data, certificateUrl: profileRes.data.trainer?.certificateUrl || null });
         setClients(cliRes.data.clients || []);
       } catch {}
       finally { setLoading(false); }
@@ -120,8 +121,11 @@ export default function TrainerOverview({ onNavigate }) {
       setVerifyMsg({ type: "success", text: "✅ Verification submitted! Our team will review your certificate shortly." });
       setCertFile(null);
       // Refresh data to show updated status
-      const res = await api.get("/trainers/overview", { headers: { Authorization: `Bearer ${token}` } });
-      setData(res.data);
+      const [overRes, profileRes] = await Promise.all([
+        api.get("/trainers/overview",   { headers: { Authorization: `Bearer ${token}` } }),
+        api.get("/trainers/profile/me", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { trainer: {} } })),
+      ]);
+      setData({ ...overRes.data, certificateUrl: profileRes.data.trainer?.certificateUrl || null });
       setTimeout(() => setShowVerify(false), 2200);
     } catch (err) {
       setVerifyMsg({ type: "error", text: err?.response?.data?.message || "Submission failed. Please try again." });
@@ -137,11 +141,15 @@ export default function TrainerOverview({ onNavigate }) {
     </div>
   );
 
-  const verifStatus = data?.verificationStatus;
-  const verified    = verifStatus === "approved";
-  const isPending   = verifStatus === "pending";
-  const isRejected  = verifStatus === "rejected";
-  const canSubmit   = !verified && !isPending;
+  const verifStatus  = data?.verificationStatus;
+  const verified     = verifStatus === "approved";
+  const isRejected   = verifStatus === "rejected";
+  // "pending" is the backend default for ALL new trainers even before upload.
+  // Use certificateUrl to tell the two states apart:
+  const hasSubmitted = !!data?.certificateUrl;
+  const isPending    = verifStatus === "pending" && hasSubmitted;  // submitted, waiting review
+  const needsSubmit  = verifStatus === "pending" && !hasSubmitted; // new trainer, hasn't uploaded
+  const canSubmit    = needsSubmit || isRejected;                  // show the upload modal
 
   const nav       = onNavigate || (() => {});
   const revenue   = data?.totalRevenue || 0;
@@ -290,7 +298,7 @@ export default function TrainerOverview({ onNavigate }) {
                   </div>
                 </div>
               </div>
-              {!isPending && (
+              {canSubmit && (
                 <button
                   onClick={() => setShowVerify(true)}
                   style={{
@@ -304,7 +312,7 @@ export default function TrainerOverview({ onNavigate }) {
                   onMouseEnter={e => { e.currentTarget.style.opacity = "0.85"; }}
                   onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
                 >
-                  {isRejected ? "↑ Resubmit Documents" : "🏅 Get Verified Now"}
+                  {isRejected ? "↑ Resubmit Documents" : "🏅 Submit Docs Now"}
                 </button>
               )}
             </div>
@@ -351,7 +359,7 @@ export default function TrainerOverview({ onNavigate }) {
                   <span style={{ display:"flex" }}>
                     {verified ? Icons.check : isRejected ? "✕" : "⏳"}
                   </span>
-                  {verified ? "Verified" : isRejected ? "Rejected — Click to Resubmit" : "Pending Verification — Click to Submit Docs"}
+                  {verified ? "Verified" : isRejected ? "Rejected — Click to Resubmit" : isPending ? "Pending Review" : "Click to Submit Docs"}
                 </button>
                 <div style={{ display:"inline-flex", alignItems:"center", gap:"5px",
                   padding:"4px 10px", borderRadius:"6px", fontSize:"11px", fontWeight:600,
