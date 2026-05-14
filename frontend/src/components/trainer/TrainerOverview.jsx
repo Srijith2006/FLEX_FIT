@@ -84,10 +84,14 @@ function SectionHead({ title, action, onAction }) {
 
 export default function TrainerOverview({ onNavigate }) {
   const { token, user } = useAuth();
-  const [data,    setData]    = useState(null);
-  const [clients, setClients] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [subTab,  setSubTab]  = useState("overview");
+  const [data,       setData]       = useState(null);
+  const [clients,    setClients]    = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [subTab,     setSubTab]     = useState("overview");
+  const [showVerify, setShowVerify] = useState(false);
+  const [certFile,   setCertFile]   = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [verifyMsg,  setVerifyMsg]  = useState({ type: "", text: "" });
 
   useEffect(() => {
     (async () => {
@@ -103,6 +107,27 @@ export default function TrainerOverview({ onNavigate }) {
     })();
   }, [token]);
 
+  const submitVerification = async () => {
+    if (!certFile) { setVerifyMsg({ type: "error", text: "Please select a certificate file." }); return; }
+    setSubmitting(true);
+    setVerifyMsg({ type: "", text: "" });
+    try {
+      const form = new FormData();
+      form.append("certificate", certFile);
+      await api.post("/trainers/verification", form, {
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" },
+      });
+      setVerifyMsg({ type: "success", text: "✅ Verification submitted! Our team will review your certificate shortly." });
+      setCertFile(null);
+      // Refresh data to show updated status
+      const res = await api.get("/trainers/overview", { headers: { Authorization: `Bearer ${token}` } });
+      setData(res.data);
+      setTimeout(() => setShowVerify(false), 2200);
+    } catch (err) {
+      setVerifyMsg({ type: "error", text: err?.response?.data?.message || "Submission failed. Please try again." });
+    } finally { setSubmitting(false); }
+  };
+
   if (loading) return (
     <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
       {[56, 120, 200].map((h, i) => (
@@ -112,16 +137,100 @@ export default function TrainerOverview({ onNavigate }) {
     </div>
   );
 
+  const verifStatus = data?.verificationStatus;
+  const verified    = verifStatus === "approved";
+  const isPending   = verifStatus === "pending";
+  const isRejected  = verifStatus === "rejected";
+  const canSubmit   = !verified && !isPending;
+
   const nav       = onNavigate || (() => {});
-  const verified  = data?.verificationStatus === "approved";
   const revenue   = data?.totalRevenue || 0;
   const firstName = user?.name?.split(" ")[0] || "Coach";
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:"16px" }}>
 
-      {/* ── Sub-tab nav ── */}
-      <div style={{ display:"flex", gap:"2px", padding:"3px",
+      {/* ── Verification Submission Modal ── */}
+      {showVerify && (
+        <div style={{ position:"fixed", inset:0, zIndex:1000, display:"flex",
+          alignItems:"center", justifyContent:"center",
+          background:"rgba(0,0,0,0.7)", backdropFilter:"blur(4px)" }}
+          onClick={e => { if (e.target === e.currentTarget) setShowVerify(false); }}>
+          <div style={{ background:"var(--bg2,#131920)", border:"1px solid rgba(255,255,255,0.1)",
+            borderRadius:"16px", padding:"28px", width:"100%", maxWidth:"460px",
+            boxShadow:"0 24px 80px rgba(0,0,0,0.5)" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"20px" }}>
+              <div>
+                <div style={{ fontWeight:700, fontSize:"17px", color:"var(--text,#e8edf2)" }}>Submit for Verification</div>
+                <div style={{ fontSize:"12px", color:"var(--text3,#8d97a3)", marginTop:"3px" }}>Upload your fitness certification document</div>
+              </div>
+              <button onClick={() => setShowVerify(false)} style={{ background:"none", border:"none",
+                cursor:"pointer", color:"var(--text3,#8d97a3)", fontSize:"20px", lineHeight:1, padding:"4px" }}>×</button>
+            </div>
+
+            {isRejected && data?.rejectionReason && (
+              <div style={{ padding:"12px 14px", borderRadius:"9px", marginBottom:"16px",
+                background:"rgba(248,113,113,0.08)", border:"1px solid rgba(248,113,113,0.2)",
+                fontSize:"12px", color:"#f87171" }}>
+                <strong>Previous rejection reason:</strong> {data.rejectionReason}
+              </div>
+            )}
+
+            <div style={{ marginBottom:"18px" }}>
+              <div style={{ fontSize:"12px", fontWeight:600, color:"var(--text2,#c4cbd4)",
+                marginBottom:"8px" }}>Certificate / Qualification Document</div>
+              <label style={{ display:"flex", flexDirection:"column", alignItems:"center",
+                justifyContent:"center", gap:"10px", padding:"24px",
+                border:`2px dashed ${certFile ? "rgba(16,185,129,0.5)" : "rgba(255,255,255,0.12)"}`,
+                borderRadius:"10px", cursor:"pointer", transition:"all 0.15s",
+                background: certFile ? "rgba(16,185,129,0.05)" : "rgba(255,255,255,0.02)" }}>
+                <div style={{ fontSize:"28px" }}>{certFile ? "✅" : "📎"}</div>
+                <div style={{ fontSize:"12px", color:"var(--text2,#c4cbd4)", textAlign:"center" }}>
+                  {certFile ? certFile.name : "Click to select a PDF, JPG or PNG"}
+                </div>
+                {certFile && (
+                  <div style={{ fontSize:"11px", color:"var(--text3,#8d97a3)" }}>
+                    {(certFile.size / 1024).toFixed(0)} KB
+                  </div>
+                )}
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png"
+                  style={{ display:"none" }}
+                  onChange={e => { setCertFile(e.target.files[0] || null); setVerifyMsg({ type:"", text:"" }); }} />
+              </label>
+            </div>
+
+            {verifyMsg.text && (
+              <div style={{ padding:"10px 14px", borderRadius:"8px", marginBottom:"14px",
+                fontSize:"12px",
+                background: verifyMsg.type === "success" ? "rgba(16,185,129,0.1)" : "rgba(248,113,113,0.1)",
+                color: verifyMsg.type === "success" ? "#34d399" : "#f87171",
+                border: `1px solid ${verifyMsg.type === "success" ? "rgba(16,185,129,0.2)" : "rgba(248,113,113,0.2)"}` }}>
+                {verifyMsg.text}
+              </div>
+            )}
+
+            <div style={{ display:"flex", gap:"10px" }}>
+              <button onClick={() => setShowVerify(false)}
+                style={{ flex:1, padding:"11px", borderRadius:"9px", fontSize:"13px",
+                  fontWeight:600, cursor:"pointer", background:"rgba(255,255,255,0.04)",
+                  border:"1px solid rgba(255,255,255,0.1)", color:"var(--text2,#c4cbd4)" }}>
+                Cancel
+              </button>
+              <button onClick={submitVerification} disabled={submitting || !certFile}
+                style={{ flex:2, padding:"11px", borderRadius:"9px", fontSize:"13px",
+                  fontWeight:700, cursor: submitting || !certFile ? "not-allowed" : "pointer",
+                  background: submitting || !certFile ? "rgba(0,112,243,0.3)" : "rgba(0,112,243,0.9)",
+                  border:"1px solid rgba(0,112,243,0.4)",
+                  color: submitting || !certFile ? "rgba(255,255,255,0.4)" : "#fff",
+                  transition:"all 0.15s" }}>
+                {submitting ? "Submitting…" : "Submit for Review"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Sub-tab nav ── */}      <div style={{ display:"flex", gap:"2px", padding:"3px",
         background:"rgba(255,255,255,0.03)", borderRadius:"10px",
         border:"1px solid rgba(255,255,255,0.06)", width:"fit-content" }}>
         {[
@@ -170,14 +279,25 @@ export default function TrainerOverview({ onNavigate }) {
                 {firstName}
               </div>
               <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
-                <div style={{ display:"inline-flex", alignItems:"center", gap:"5px",
-                  padding:"4px 10px", borderRadius:"6px", fontSize:"11px", fontWeight:600,
-                  background: verified ? "rgba(16,185,129,0.1)" : "rgba(245,158,11,0.1)",
-                  color: verified ? "var(--green)" : "var(--gold)",
-                  border:`1px solid ${verified ? "rgba(16,185,129,0.2)" : "rgba(245,158,11,0.2)"}` }}>
-                  <span style={{ display:"flex" }}>{verified ? Icons.check : null}</span>
-                  {verified ? "Verified" : "Pending Verification"}
-                </div>
+                {/* Verification status badge — clickable when not yet approved */}
+                <button
+                  onClick={() => canSubmit && setShowVerify(true)}
+                  style={{
+                    display:"inline-flex", alignItems:"center", gap:"5px",
+                    padding:"4px 10px", borderRadius:"6px", fontSize:"11px", fontWeight:600,
+                    background: verified ? "rgba(16,185,129,0.1)" : isRejected ? "rgba(248,113,113,0.1)" : "rgba(245,158,11,0.1)",
+                    color: verified ? "var(--green)" : isRejected ? "#f87171" : "var(--gold)",
+                    border:`1px solid ${verified ? "rgba(16,185,129,0.2)" : isRejected ? "rgba(248,113,113,0.25)" : "rgba(245,158,11,0.2)"}`,
+                    cursor: canSubmit ? "pointer" : "default",
+                    transition:"all 0.15s",
+                  }}
+                  onMouseEnter={e => { if (canSubmit) e.currentTarget.style.opacity = "0.8"; }}
+                  onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}>
+                  <span style={{ display:"flex" }}>
+                    {verified ? Icons.check : isRejected ? "✕" : "⏳"}
+                  </span>
+                  {verified ? "Verified" : isRejected ? "Rejected — Click to Resubmit" : "Pending Verification — Click to Submit Docs"}
+                </button>
                 <div style={{ display:"inline-flex", alignItems:"center", gap:"5px",
                   padding:"4px 10px", borderRadius:"6px", fontSize:"11px", fontWeight:600,
                   background:"rgba(0,112,243,0.08)", color:"var(--accent)",
