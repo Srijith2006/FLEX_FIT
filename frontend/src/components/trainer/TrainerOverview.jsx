@@ -255,6 +255,61 @@ export default function TrainerOverview({ onNavigate }) {
         <TrainerAnalytics />
       ) : (
         <>
+          {/* ── Verification Banner ── */}
+          {!verified && (
+            <div style={{
+              borderRadius: "13px", padding: "18px 22px",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              gap: "16px", flexWrap: "wrap",
+              background: isRejected
+                ? "linear-gradient(135deg, rgba(248,113,113,0.08), rgba(239,68,68,0.04))"
+                : isPending
+                  ? "linear-gradient(135deg, rgba(245,158,11,0.08), rgba(251,191,36,0.04))"
+                  : "linear-gradient(135deg, rgba(0,112,243,0.1), rgba(124,58,237,0.06))",
+              border: `1px solid ${isRejected ? "rgba(248,113,113,0.25)" : isPending ? "rgba(245,158,11,0.25)" : "rgba(0,112,243,0.2)"}`,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                <div style={{
+                  width: "42px", height: "42px", borderRadius: "10px", flexShrink: 0,
+                  background: isRejected ? "rgba(248,113,113,0.12)" : isPending ? "rgba(245,158,11,0.12)" : "rgba(0,112,243,0.12)",
+                  border: `1px solid ${isRejected ? "rgba(248,113,113,0.2)" : isPending ? "rgba(245,158,11,0.2)" : "rgba(0,112,243,0.2)"}`,
+                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px",
+                }}>
+                  {isRejected ? "❌" : isPending ? "⏳" : "🏅"}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: "14px", color: "var(--text)", marginBottom: "3px" }}>
+                    {isRejected ? "Verification Rejected" : isPending ? "Verification Under Review" : "Get Verified to Unlock Full Access"}
+                  </div>
+                  <div style={{ fontSize: "12px", color: "var(--text3)", maxWidth: "420px" }}>
+                    {isRejected
+                      ? (data?.rejectionReason ? `Reason: ${data.rejectionReason}` : "Your submission was rejected. Please resubmit with valid documents.")
+                      : isPending
+                        ? "Your certificate is being reviewed by our team. This usually takes 24–48 hours."
+                        : "Upload your fitness certification to appear in client searches and publish programs."}
+                  </div>
+                </div>
+              </div>
+              {!isPending && (
+                <button
+                  onClick={() => setShowVerify(true)}
+                  style={{
+                    padding: "10px 20px", borderRadius: "9px", fontSize: "13px",
+                    fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
+                    background: isRejected ? "rgba(248,113,113,0.15)" : "rgba(0,112,243,0.85)",
+                    border: `1px solid ${isRejected ? "rgba(248,113,113,0.35)" : "rgba(0,112,243,0.5)"}`,
+                    color: isRejected ? "#f87171" : "#fff",
+                    transition: "all 0.15s",
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.opacity = "0.85"; }}
+                  onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
+                >
+                  {isRejected ? "↑ Resubmit Documents" : "🏅 Get Verified Now"}
+                </button>
+              )}
+            </div>
+          )}
+
           {/* ── Hero ── */}
           <div style={{
             borderRadius:"14px", padding:"24px 28px",
