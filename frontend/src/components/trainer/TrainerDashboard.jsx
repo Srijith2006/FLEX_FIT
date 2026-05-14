@@ -1,26 +1,72 @@
-﻿import { useEffect, useState } from "react";
+﻿import { useEffect, useState, useRef } from "react";
 import api from "../../services/api.js";
 import useAuth from "../../hooks/useAuth.js";
-
 
 const SPECS = ["Weight Loss", "Muscle Gain", "HIIT", "Yoga", "Powerlifting", "Cardio", "Nutrition", "Rehabilitation", "Sports Performance", "Flexibility"];
 
 export default function TrainerDashboard() {
   const { token, user } = useAuth();
-  const [editing, setEditing] = useState(false);
-  const [profile, setProfile] = useState({ bio: "", specialization: [], yearsOfExperience: "", hourlyRate: "" });
+  const [editing,    setEditing]    = useState(false);
+  const [profile,    setProfile]    = useState({ bio: "", specialization: [], yearsOfExperience: "", hourlyRate: "" });
   const [relationships, setRelationships] = useState([]);
-  const [msg, setMsg] = useState({ type: "", text: "" });
-  const [saving, setSaving] = useState(false);
+  const [msg,        setMsg]        = useState({ type: "", text: "" });
+  const [saving,     setSaving]     = useState(false);
+
+  // ── Verification state ──────────────────────────────────────────────────────
+  const [verifStatus,   setVerifStatus]   = useState(null);   // "pending"|"approved"|"rejected"|null
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [showVerify,    setShowVerify]    = useState(false);
+  const [certFile,      setCertFile]      = useState(null);
+  const [submitting,    setSubmitting]    = useState(false);
+  const [verifMsg,      setVerifMsg]      = useState({ type: "", text: "" });
+  const verifyRef = useRef(null);
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await api.get("/coaching/mine", { headers: { Authorization: `Bearer ${token}` } });
-        setRelationships(res.data.relationships || []);
+        const [coachRes, overRes] = await Promise.all([
+          api.get("/coaching/mine",      { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { relationships: [] } })),
+          api.get("/trainers/overview",  { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: {} })),
+        ]);
+        setRelationships(coachRes.data.relationships || []);
+        setVerifStatus(overRes.data.verificationStatus || null);
+        setRejectionReason(overRes.data.rejectionReason || "");
+        // Pre-fill profile if available
+        if (overRes.data.bio !== undefined) {
+          setProfile(p => ({
+            ...p,
+            bio:               overRes.data.bio               || p.bio,
+            specialization:    overRes.data.specialization    || p.specialization,
+            yearsOfExperience: overRes.data.yearsOfExperience || p.yearsOfExperience,
+            hourlyRate:        overRes.data.hourlyRate        || p.hourlyRate,
+          }));
+        }
       } catch {}
     })();
   }, [token]);
+
+  const scrollToVerify = () => {
+    setShowVerify(true);
+    setTimeout(() => verifyRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 80);
+  };
+
+  const submitVerification = async () => {
+    if (!certFile) { setVerifMsg({ type: "error", text: "Please select a certificate file." }); return; }
+    setSubmitting(true);
+    setVerifMsg({ type: "", text: "" });
+    try {
+      const form = new FormData();
+      form.append("certificate", certFile);
+      await api.post("/trainers/verification", form, {
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" },
+      });
+      setVerifMsg({ type: "success", text: "✅ Submitted! Our team will review your certificate shortly." });
+      setVerifStatus("pending");
+      setCertFile(null);
+    } catch (e) {
+      setVerifMsg({ type: "error", text: e?.response?.data?.message || "Submission failed. Please try again." });
+    } finally { setSubmitting(false); }
+  };
 
   const toggleSpec = (s) => {
     setProfile(p => ({
@@ -52,6 +98,68 @@ export default function TrainerDashboard() {
 
   return (
     <>
+      {/* ── Verification Banner — shown when not yet approved ── */}
+      {verifStatus !== "approved" && verifStatus !== null && (
+        <div style={{
+          borderRadius: "12px", padding: "16px 20px",
+          background: verifStatus === "rejected"
+            ? "rgba(248,113,113,0.07)" : "rgba(245,158,11,0.07)",
+          border: `1px solid ${verifStatus === "rejected"
+            ? "rgba(248,113,113,0.25)" : "rgba(245,158,11,0.25)"}`,
+          display: "flex", alignItems: "center",
+          justifyContent: "space-between", gap: "14px", flexWrap: "wrap",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ fontSize: "22px" }}>
+              {verifStatus === "rejected" ? "❌" : "⏳"}
+            </span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: "14px",
+                color: verifStatus === "rejected" ? "#f87171" : "var(--gold, #fbbf24)" }}>
+                {verifStatus === "rejected" ? "Verification Rejected" : "Verification Pending"}
+              </div>
+              <div style={{ fontSize: "12px", color: "var(--text3)", marginTop: "2px" }}>
+                {verifStatus === "rejected"
+                  ? (rejectionReason ? `Reason: ${rejectionReason}` : "Your documents were rejected. Please resubmit.")
+                  : "Submit your certificate to get verified and appear in search results."}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={scrollToVerify}
+            style={{
+              padding: "8px 18px", borderRadius: "8px", fontSize: "12px",
+              fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
+              background: verifStatus === "rejected"
+                ? "rgba(248,113,113,0.15)" : "rgba(245,158,11,0.15)",
+              border: `1px solid ${verifStatus === "rejected"
+                ? "rgba(248,113,113,0.35)" : "rgba(245,158,11,0.35)"}`,
+              color: verifStatus === "rejected" ? "#f87171" : "var(--gold, #fbbf24)",
+            }}>
+            {verifStatus === "rejected" ? "Resubmit Documents ↓" : "Submit Documents ↓"}
+          </button>
+        </div>
+      )}
+
+      {/* ── Verification not fetched yet — nudge banner ── */}
+      {verifStatus === null && (
+        <div style={{
+          borderRadius: "12px", padding: "14px 20px",
+          background: "rgba(245,158,11,0.06)",
+          border: "1px solid rgba(245,158,11,0.2)",
+          display: "flex", alignItems: "center", gap: "12px",
+        }}>
+          <span style={{ fontSize: "20px" }}>📋</span>
+          <div style={{ fontSize: "13px", color: "var(--text2)" }}>
+            Complete your profile and <button onClick={scrollToVerify}
+              style={{ background: "none", border: "none", cursor: "pointer",
+                color: "var(--gold, #fbbf24)", fontWeight: 700, fontSize: "13px",
+                padding: 0, textDecoration: "underline" }}>
+              submit verification documents
+            </button> to start accepting clients.
+          </div>
+        </div>
+      )}
       {/* My Profile Card */}
       <div className="card">
         <div className="flex-between mb-4">
